@@ -6,14 +6,15 @@
 @inject IDashboardService DashboardService
 @inject INotificationService NotificationService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
 
-<PageTitle>Dashboard - ContosoDashboard</PageTitle>
+<PageTitle>@L["Dashboard"] - ContosoDashboard</PageTitle>
 
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col">
-            <h1>Welcome, @userName!</h1>
-            <p class="text-muted">@DateTime.Now.ToString("dddd, MMMM dd, yyyy")</p>
+            <h1>@L["Welcome, {0}!", userName]</h1>
+            <p class="text-muted">@DateTime.Now.ToString("D")</p>
         </div>
     </div>
 
@@ -23,7 +24,7 @@
             <div class="col-md-3 mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
-                        <h5 class="card-title">Active Tasks</h5>
+                        <h5 class="card-title">@L["Active Tasks"]</h5>
                         <p class="card-text display-4">@summary.TotalActiveTasks</p>
                     </div>
                 </div>
@@ -31,7 +32,7 @@
             <div class="col-md-3 mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
-                        <h5 class="card-title">Due Today</h5>
+                        <h5 class="card-title">@L["Due Today"]</h5>
                         <p class="card-text display-4 text-warning">@summary.TasksDueToday</p>
                     </div>
                 </div>
@@ -39,7 +40,7 @@
             <div class="col-md-3 mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
-                        <h5 class="card-title">Active Projects</h5>
+                        <h5 class="card-title">@L["Active Projects"]</h5>
                         <p class="card-text display-4 text-info">@summary.ActiveProjects</p>
                     </div>
                 </div>
@@ -47,7 +48,7 @@
             <div class="col-md-3 mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
-                        <h5 class="card-title">Notifications</h5>
+                        <h5 class="card-title">@L["Notifications"]</h5>
                         <p class="card-text display-4 text-danger">@summary.UnreadNotifications</p>
                     </div>
                 </div>
@@ -59,15 +60,15 @@
     {
         <div class="row mb-4">
             <div class="col">
-                <h3>Announcements</h3>
+                <h3>@L["Announcements"]</h3>
                 @foreach (var announcement in announcements)
                 {
                     <div class="card mb-3 announcement-card">
                         <div class="card-body">
-                            <h5 class="card-title">@announcement.Title</h5>
-                            <p class="card-text">@announcement.Content</p>
+                            <h5 class="card-title">@L[announcement.Title]</h5>
+                            <p class="card-text">@L[announcement.Content]</p>
                             <small class="text-muted">
-                                Posted by @announcement.CreatedByUser.DisplayName on @announcement.PublishDate.ToString("MMM dd, yyyy")
+                                @L["Posted by {0} on {1}", announcement.CreatedByUser.DisplayName, announcement.PublishDate.ToString("d")]
                             </small>
                         </div>
                     </div>
@@ -78,25 +79,25 @@
 
     <div class="row">
         <div class="col-md-6">
-            <h3>Quick Actions</h3>
+            <h3>@L["Quick Actions"]</h3>
             <div class="list-group">
                 <a href="/tasks" class="list-group-item list-group-item-action">
-                    <i class="bi bi-check2-square"></i> View My Tasks
+                    <i class="bi bi-check2-square"></i> @L["View My Tasks"]
                 </a>
                 <a href="/projects" class="list-group-item list-group-item-action">
-                    <i class="bi bi-folder"></i> View My Projects
+                    <i class="bi bi-folder"></i> @L["View My Projects"]
                 </a>
                 <a href="/notifications" class="list-group-item list-group-item-action">
-                    <i class="bi bi-bell"></i> View Notifications
+                    <i class="bi bi-bell"></i> @L["View Notifications"]
                 </a>
                 <a href="/profile" class="list-group-item list-group-item-action">
-                    <i class="bi bi-person"></i> Edit Profile
+                    <i class="bi bi-person"></i> @L["Edit Profile"]
                 </a>
             </div>
         </div>
 
         <div class="col-md-6">
-            <h3>Recent Notifications</h3>
+            <h3>@L["Recent Notifications"]</h3>
             @if (recentNotifications != null && recentNotifications.Any())
             {
                 <div class="list-group">
@@ -114,7 +115,7 @@
             }
             else
             {
-                <p class="text-muted">No recent notifications</p>
+                <p class="text-muted">@L["No recent notifications"]</p>
             }
         </div>
     </div>
@@ -154,14 +155,23 @@
         var timeSpan = DateTime.UtcNow - dateTime;
 
         if (timeSpan.TotalMinutes < 1)
-            return "Just now";
+            return L["Just now"];
         if (timeSpan.TotalMinutes < 60)
-            return $"{(int)timeSpan.TotalMinutes} min ago";
+        {
+            var minutes = (int)timeSpan.TotalMinutes;
+            return minutes == 1 ? L["1 minute ago"] : L["{0} min ago", minutes];
+        }
         if (timeSpan.TotalHours < 24)
-            return $"{(int)timeSpan.TotalHours} hours ago";
+        {
+            var hours = (int)timeSpan.TotalHours;
+            return hours == 1 ? L["1 hour ago"] : L["{0} hours ago", hours];
+        }
         if (timeSpan.TotalDays < 7)
-            return $"{(int)timeSpan.TotalDays} days ago";
+        {
+            var days = (int)timeSpan.TotalDays;
+            return days == 1 ? L["1 day ago"] : L["{0} days ago", days];
+        }
 
-        return dateTime.ToString("MMM dd, yyyy");
+        return dateTime.ToString("d");
     }
 }

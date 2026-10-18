@@ -3,19 +3,21 @@ using ContosoDashboard.Data;
 using ContosoDashboard.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 
 // Add authentication state provider for Blazor
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
 
 // Configure Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Configure Mock Authentication (Cookie-based for training purposes)
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -57,6 +59,37 @@ using (var scope = app.Services.CreateScope())
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
         context.Database.EnsureCreated(); // For development - use migrations in production
+
+        await context.Database.OpenConnectionAsync();
+        try
+        {
+            var connection = context.Database.GetDbConnection();
+            var hasPreferredCultureColumn = false;
+            await using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "PRAGMA table_info(\"Users\");";
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    if (reader.GetString(1).Equals("PreferredCulture", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasPreferredCultureColumn = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasPreferredCultureColumn)
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = "ALTER TABLE \"Users\" ADD COLUMN \"PreferredCulture\" TEXT NULL;";
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
     }
     catch (Exception ex)
     {
@@ -99,11 +132,37 @@ app.Use(async (context, next) =>
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseRequestLocalization(new RequestLocalizationOptions()
+    .SetDefaultCulture("en-US")
+    .AddSupportedCultures("en-US", "pt-BR", "es", "de")
+    .AddSupportedUICultures("en-US", "pt-BR", "es", "de"));
 app.UseRouting();
 
 // Enable authentication and authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/culture/set", (HttpContext context, string culture, string? returnUrl) =>
+{
+    if (culture is not ("en-US" or "pt-BR" or "es" or "de"))
+    {
+        return Results.BadRequest();
+    }
+
+    var requestCulture = new RequestCulture(culture);
+    context.Response.Cookies.Append(
+        CookieRequestCultureProvider.DefaultCookieName,
+        CookieRequestCultureProvider.MakeCookieValue(requestCulture),
+        new CookieOptions
+        {
+            Expires = DateTimeOffset.UtcNow.AddYears(1),
+            IsEssential = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = context.Request.IsHttps
+        });
+
+    return Results.LocalRedirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
+});
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");

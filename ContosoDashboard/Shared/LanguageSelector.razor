@@ -1,0 +1,35 @@
+@inject NavigationManager Navigation
+@inject IStringLocalizer<SharedResource> L
+
+<div class="language-selector">
+    <label class="visually-hidden" for="language-select">@L["Language"]</label>
+    <select id="language-select" class="form-select form-select-sm" value="@CurrentCulture" @onchange="ChangeCulture">
+        <option value="en-US">English</option>
+        <option value="pt-BR">Português (Brasil)</option>
+        <option value="es">Español</option>
+        <option value="de">Deutsch</option>
+    </select>
+</div>
+
+@code {
+    private string CurrentCulture => CultureInfo.CurrentUICulture.Name switch
+    {
+        "pt-BR" => "pt-BR",
+        "es" => "es",
+        "de" => "de",
+        _ => "en-US"
+    };
+
+    private void ChangeCulture(ChangeEventArgs args)
+    {
+        var culture = args.Value?.ToString();
+        if (culture is not ("en-US" or "pt-BR" or "es" or "de"))
+        {
+            return;
+        }
+
+        var currentUri = new Uri(Navigation.Uri);
+        var returnUrl = Uri.EscapeDataString(currentUri.PathAndQuery);
+        Navigation.NavigateTo($"/culture/set?culture={culture}&returnUrl={returnUrl}", forceLoad: true);
+    }
+}

@@ -5,16 +5,21 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Security.Claims;
 using ContosoDashboard.Services;
 using ContosoDashboard.Models;
+using ContosoDashboard;
+using Microsoft.Extensions.Localization;
+using Microsoft.AspNetCore.Localization;
 
 namespace ContosoDashboard.Pages
 {
     public class LoginModel : PageModel
     {
         private readonly IUserService _userService;
+        private readonly IStringLocalizer<SharedResource> _localizer;
 
-        public LoginModel(IUserService userService)
+        public LoginModel(IUserService userService, IStringLocalizer<SharedResource> localizer)
         {
             _userService = userService;
+            _localizer = localizer;
         }
 
         public List<User>? Users { get; set; }
@@ -36,7 +41,7 @@ namespace ContosoDashboard.Pages
             if (selectedUserId == 0)
             {
                 Console.WriteLine("Login POST: No user selected");
-                ErrorMessage = "Please select a user";
+                ErrorMessage = _localizer["Please select a user"];
                 return Page();
             }
 
@@ -45,7 +50,7 @@ namespace ContosoDashboard.Pages
             if (user == null)
             {
                 Console.WriteLine($"Login POST: User {selectedUserId} not found");
-                ErrorMessage = "User not found";
+                ErrorMessage = _localizer["User not found"];
                 return Page();
             }
 
@@ -74,6 +79,21 @@ namespace ContosoDashboard.Pages
                     new ClaimsPrincipal(claimsIdentity),
                     authProperties);
 
+                if (user.PreferredCulture is "en-US" or "pt-BR" or "es" or "de")
+                {
+                    var requestCulture = new RequestCulture(user.PreferredCulture);
+                    HttpContext.Response.Cookies.Append(
+                        CookieRequestCultureProvider.DefaultCookieName,
+                        CookieRequestCultureProvider.MakeCookieValue(requestCulture),
+                        new CookieOptions
+                        {
+                            Expires = DateTimeOffset.UtcNow.AddYears(1),
+                            IsEssential = true,
+                            SameSite = SameSiteMode.Lax,
+                            Secure = HttpContext.Request.IsHttps
+                        });
+                }
+
                 Console.WriteLine($"Login POST: Sign in successful, redirecting to /");
                 
                 // Update last login date
@@ -88,7 +108,7 @@ namespace ContosoDashboard.Pages
                 // Log the actual error but show generic message to user
                 Console.WriteLine($"Login error: {ex.Message}");
                 Console.WriteLine($"Login error stack: {ex.StackTrace}");
-                ErrorMessage = "Login failed. Please try again.";
+                ErrorMessage = _localizer["Login failed. Please try again."];
                 return Page();
             }
         }

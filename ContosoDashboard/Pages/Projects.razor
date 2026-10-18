@@ -6,23 +6,24 @@
 @attribute [Authorize]
 @inject IProjectService ProjectService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
 
-<PageTitle>My Projects - ContosoDashboard</PageTitle>
+<PageTitle>@L["My Projects"] - ContosoDashboard</PageTitle>
 
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col">
-            <h1>My Projects</h1>
+            <h1>@L["My Projects"]</h1>
         </div>
     </div>
 
     @if (projects == null)
     {
-        <p><em>Loading...</em></p>
+        <p><em>@L["Loading..."]</em></p>
     }
     else if (!projects.Any())
     {
-        <div class="alert alert-info">No projects found.</div>
+        <div class="alert alert-info">@L["No projects found."]</div>
     }
     else
     {
@@ -32,23 +33,23 @@
                 <div class="col-md-6 col-lg-4 mb-4">
                     <div class="card h-100 project-card">
                         <div class="card-body">
-                            <h5 class="card-title">@project.Name</h5>
-                            <p class="card-text text-muted">@project.Description</p>
+                            <h5 class="card-title">@L[project.Name]</h5>
+                            <p class="card-text text-muted">@(project.Description is null ? string.Empty : L[project.Description].Value)</p>
                             
                             <div class="mb-2">
-                                <small class="text-muted">Project Manager:</small><br />
+                                <small class="text-muted">@L["Project Manager:"]</small><br />
                                 <strong>@project.ProjectManager.DisplayName</strong>
                             </div>
 
                             <div class="mb-2">
-                                <small class="text-muted">Status:</small><br />
+                                <small class="text-muted">@L["Status:"]</small><br />
                                 <span class="badge bg-@GetStatusColor(project.Status)">
-                                    @project.Status
+                                    @L[project.Status.ToString()]
                                 </span>
                             </div>
 
                             <div class="mb-2">
-                                <small class="text-muted">Progress:</small>
+                                <small class="text-muted">@L["Progress:"]</small>
                                 <div class="progress">
                                     <div class="progress-bar" role="progressbar" 
                                          style="width: @project.CompletionPercentage%"
@@ -61,25 +62,25 @@
                             </div>
 
                             <div class="mb-2">
-                                <small class="text-muted">Target Completion:</small><br />
+                                <small class="text-muted">@L["Target Completion:"]</small><br />
                                 @if (project.TargetCompletionDate.HasValue)
                                 {
-                                    <span>@project.TargetCompletionDate.Value.ToString("MMM dd, yyyy")</span>
+                                    <span>@project.TargetCompletionDate.Value.ToString("d")</span>
                                 }
                                 else
                                 {
-                                    <span class="text-muted">Not set</span>
+                                    <span class="text-muted">@L["Not set"]</span>
                                 }
                             </div>
 
                             <div class="mb-2">
-                                <small class="text-muted">Tasks: @project.Tasks.Count</small><br />
-                                <small class="text-muted">Team Members: @project.ProjectMembers.Count</small>
+                                <small class="text-muted">@L["Tasks: {0}", project.Tasks.Count]</small><br />
+                                <small class="text-muted">@L["Team Members: {0}", project.ProjectMembers.Count]</small>
                             </div>
                         </div>
                         <div class="card-footer">
                             <a href="/projects/@project.ProjectId" class="btn btn-primary btn-sm">
-                                View Details
+                                @L["View Details"]
                             </a>
                         </div>
                     </div>

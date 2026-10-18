@@ -7,24 +7,25 @@
 @inject IUserService UserService
 @inject ITaskService TaskService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
 
-<PageTitle>Team - ContosoDashboard</PageTitle>
+<PageTitle>@L["Team"] - ContosoDashboard</PageTitle>
 
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col">
-            <h1>My Team</h1>
-            <p class="text-muted">View your team members and their current workload</p>
+            <h1>@L["My Team"]</h1>
+            <p class="text-muted">@L["View your team members and their current workload"]</p>
         </div>
     </div>
 
     @if (teamMembers == null)
     {
-        <p><em>Loading...</em></p>
+        <p><em>@L["Loading..."]</em></p>
     }
     else if (!teamMembers.Any())
     {
-        <div class="alert alert-info">No team members found in your department.</div>
+        <div class="alert alert-info">@L["No team members found in your department."]</div>
     }
     else
     {
@@ -50,25 +51,25 @@
                                 }
                                 <div>
                                     <h5 class="card-title mb-1">@member.DisplayName</h5>
-                                    <p class="card-text text-muted mb-0">@member.JobTitle</p>
+                                    <p class="card-text text-muted mb-0">@(member.JobTitle is null ? string.Empty : L[member.JobTitle])</p>
                                 </div>
                             </div>
 
                             <div class="mb-2">
-                                <small class="text-muted">Status:</small><br />
+                                <small class="text-muted">@L["Status:"]</small><br />
                                 <span class="badge bg-@GetStatusColor(member.AvailabilityStatus)">
                                     @GetStatusText(member.AvailabilityStatus)
                                 </span>
                             </div>
 
                             <div class="mb-2">
-                                <small class="text-muted">Role:</small><br />
-                                <strong>@member.Role</strong>
+                                <small class="text-muted">@L["Role:"]</small><br />
+                                <strong>@L[member.Role.ToString()]</strong>
                             </div>
 
                             <div class="mb-2">
-                                <small class="text-muted">Department:</small><br />
-                                <strong>@member.Department</strong>
+                                <small class="text-muted">@L["Department"]:</small><br />
+                                <strong>@(member.Department is null ? string.Empty : L[member.Department])</strong>
                             </div>
 
                             @if (!string.IsNullOrEmpty(member.Email))
@@ -145,11 +146,11 @@
     {
         return status switch
         {
-            AvailabilityStatus.Available => "Available",
-            AvailabilityStatus.Busy => "Busy",
-            AvailabilityStatus.InMeeting => "In Meeting",
-            AvailabilityStatus.OutOfOffice => "Out of Office",
-            _ => "Unknown"
+            AvailabilityStatus.Available => L["Available"],
+            AvailabilityStatus.Busy => L["Busy"],
+            AvailabilityStatus.InMeeting => L["In Meeting"],
+            AvailabilityStatus.OutOfOffice => L["Out of Office"],
+            _ => L["Unknown"]
         };
     }
 }

@@ -6,23 +6,24 @@
 @attribute [Authorize]
 @inject INotificationService NotificationService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
 
-<PageTitle>Notifications - ContosoDashboard</PageTitle>
+<PageTitle>@L["Notifications"] - ContosoDashboard</PageTitle>
 
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col">
-            <h1>Notifications</h1>
+            <h1>@L["Notifications"]</h1>
         </div>
     </div>
 
     @if (notifications == null)
     {
-        <p><em>Loading...</em></p>
+        <p><em>@L["Loading..."]</em></p>
     }
     else if (!notifications.Any())
     {
-        <div class="alert alert-info">No notifications to display.</div>
+        <div class="alert alert-info">@L["No notifications to display."]</div>
     }
     else
     {
@@ -37,9 +38,9 @@
                                     <div class="d-flex align-items-center mb-1">
                                         <h6 class="mb-0 me-2">@notification.Title</h6>
                                         <span class="badge bg-@GetPriorityColor(notification.Priority)">
-                                            @notification.Priority
+                                            @L[notification.Priority.ToString()]
                                         </span>
-                                        <span class="badge bg-secondary ms-2">@notification.Type</span>
+                                        <span class="badge bg-secondary ms-2">@L[notification.Type.ToString()]</span>
                                     </div>
                                     <p class="mb-1">@notification.Message</p>
                                     <small class="text-muted">@GetRelativeTime(notification.CreatedDate)</small>
@@ -48,7 +49,7 @@
                                 {
                                     <button class="btn btn-sm btn-outline-primary ms-3" 
                                             @onclick="() => MarkAsRead(notification.NotificationId)">
-                                        <i class="bi bi-check"></i> Mark as Read
+                                        <i class="bi bi-check"></i> @L["Mark as Read"]
                                     </button>
                                 }
                             </div>
@@ -60,16 +61,16 @@
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Summary</h5>
+                        <h5 class="card-title">@L["Summary"]</h5>
                         <p class="card-text">
-                            <strong>Total Notifications:</strong> @notifications.Count<br />
-                            <strong>Unread:</strong> @notifications.Count(n => !n.IsRead)<br />
-                            <strong>Read:</strong> @notifications.Count(n => n.IsRead)
+                            <strong>@L["Total Notifications:"]</strong> @notifications.Count<br />
+                            <strong>@L["Unread:"]</strong> @notifications.Count(n => !n.IsRead)<br />
+                            <strong>@L["Read:"]</strong> @notifications.Count(n => n.IsRead)
                         </p>
                         @if (notifications.Any(n => !n.IsRead))
                         {
                             <button class="btn btn-primary btn-sm" @onclick="MarkAllAsRead">
-                                Mark All as Read
+                                @L["Mark All as Read"]
                             </button>
                         }
                     </div>
@@ -142,14 +143,23 @@
         var timeSpan = DateTime.UtcNow - dateTime;
 
         if (timeSpan.TotalMinutes < 1)
-            return "Just now";
+            return L["Just now"];
         if (timeSpan.TotalMinutes < 60)
-            return $"{(int)timeSpan.TotalMinutes} min ago";
+        {
+            var minutes = (int)timeSpan.TotalMinutes;
+            return minutes == 1 ? L["1 minute ago"] : L["{0} min ago", minutes];
+        }
         if (timeSpan.TotalHours < 24)
-            return $"{(int)timeSpan.TotalHours} hours ago";
+        {
+            var hours = (int)timeSpan.TotalHours;
+            return hours == 1 ? L["1 hour ago"] : L["{0} hours ago", hours];
+        }
         if (timeSpan.TotalDays < 7)
-            return $"{(int)timeSpan.TotalDays} days ago";
+        {
+            var days = (int)timeSpan.TotalDays;
+            return days == 1 ? L["1 day ago"] : L["{0} days ago", days];
+        }
 
-        return dateTime.ToString("MMM dd, yyyy");
+        return dateTime.ToString("d");
     }
 }

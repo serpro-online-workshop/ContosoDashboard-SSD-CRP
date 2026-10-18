@@ -7,25 +7,26 @@
 @inject IProjectService ProjectService
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
 
-<PageTitle>Project Details - ContosoDashboard</PageTitle>
+<PageTitle>@L["Project Details"] - ContosoDashboard</PageTitle>
 
 <div class="container-fluid">
     @if (project == null)
     {
-        <p><em>Loading...</em></p>
+        <p><em>@L["Loading..."]</em></p>
     }
     else
     {
         <div class="row mb-4">
             <div class="col">
-                <nav aria-label="breadcrumb">
+                <nav aria-label="@L["Breadcrumb"]">
                     <ol class="breadcrumb">
-                        <li class="breadcrumb-item"><a href="/projects">My Projects</a></li>
+                        <li class="breadcrumb-item"><a href="/projects">@L["My Projects"]</a></li>
                         <li class="breadcrumb-item active" aria-current="page">@project.Name</li>
                     </ol>
                 </nav>
-                <h1>@project.Name</h1>
+                <h1>@L[project.Name]</h1>
             </div>
         </div>
 
@@ -33,24 +34,24 @@
             <div class="col-md-8">
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0">Project Information</h5>
+                        <h5 class="mb-0">@L["Project Information"]</h5>
                     </div>
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label class="text-muted small">Description</label>
-                                <p>@project.Description</p>
+                                <label class="text-muted small">@L["Description"]</label>
+                                <p>@(project.Description is null ? string.Empty : L[project.Description].Value)</p>
                             </div>
                             <div class="col-md-3">
-                                <label class="text-muted small">Status</label>
+                                <label class="text-muted small">@L["Status"]</label>
                                 <p>
                                     <span class="badge bg-@GetStatusColor(project.Status)">
-                                        @project.Status
+                                        @L[project.Status.ToString()]
                                     </span>
                                 </p>
                             </div>
                             <div class="col-md-3">
-                                <label class="text-muted small">Progress</label>
+                                <label class="text-muted small">@L["Progress:"]</label>
                                 <div class="progress">
                                     <div class="progress-bar" role="progressbar" 
                                          style="width: @project.CompletionPercentage%"
@@ -65,23 +66,23 @@
 
                         <div class="row mb-3">
                             <div class="col-md-4">
-                                <label class="text-muted small">Project Manager</label>
+                                <label class="text-muted small">@L["Project Manager"]</label>
                                 <p>@project.ProjectManager.DisplayName</p>
                             </div>
                             <div class="col-md-4">
-                                <label class="text-muted small">Start Date</label>
-                                <p>@project.StartDate.ToString("MMM dd, yyyy")</p>
+                                <label class="text-muted small">@L["Start Date"]</label>
+                                <p>@project.StartDate.ToString("d")</p>
                             </div>
                             <div class="col-md-4">
-                                <label class="text-muted small">Target Completion</label>
+                                <label class="text-muted small">@L["Target Completion"]</label>
                                 <p>
                                     @if (project.TargetCompletionDate.HasValue)
                                     {
-                                        <span>@project.TargetCompletionDate.Value.ToString("MMM dd, yyyy")</span>
+                                        <span>@project.TargetCompletionDate.Value.ToString("d")</span>
                                     }
                                     else
                                     {
-                                        <span class="text-muted">Not set</span>
+                                        <span class="text-muted">@L["Not set"]</span>
                                     }
                                 </p>
                             </div>
@@ -91,12 +92,12 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">Project Tasks</h5>
+                        <h5 class="mb-0">@L["Project Tasks"]</h5>
                     </div>
                     <div class="card-body">
                         @if (!project.Tasks.Any())
                         {
-                            <p class="text-muted">No tasks assigned to this project.</p>
+                            <p class="text-muted">@L["No tasks assigned to this project."]</p>
                         }
                         else
                         {
@@ -104,11 +105,11 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>Title</th>
-                                            <th>Assigned To</th>
-                                            <th>Status</th>
-                                            <th>Priority</th>
-                                            <th>Due Date</th>
+                                            <th>@L["Title"]</th>
+                                            <th>@L["Assigned To"]</th>
+                                            <th>@L["Status"]</th>
+                                            <th>@L["Priority"]</th>
+                                            <th>@L["Due Date"]</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -116,30 +117,30 @@
                                         {
                                             <tr class="@(task.DueDate.HasValue && task.DueDate < DateTime.Today && task.Status != Models.TaskStatus.Completed ? "table-danger" : "")">">
                                                 <td>
-                                                    <strong>@task.Title</strong>
+                                                    <strong>@L[task.Title]</strong>
                                                     @if (!string.IsNullOrEmpty(task.Description))
                                                     {
                                                         <br />
-                                                        <small class="text-muted">@task.Description</small>
+                                                        <small class="text-muted">@L[task.Description]</small>
                                                     }
                                                 </td>
                                                 <td>@task.AssignedUser.DisplayName</td>
                                                 <td>
                                                     <span class="badge bg-@GetTaskStatusColor(task.Status)">
-                                                        @task.Status
+                                                        @L[task.Status.ToString()]
                                                     </span>
                                                 </td>
                                                 <td>
                                                     <span class="badge bg-@GetPriorityColor(task.Priority)">
-                                                        @task.Priority
+                                                        @L[task.Priority.ToString()]
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    @(task.DueDate?.ToString("MMM dd, yyyy") ?? "No due date")
+                                                    @(task.DueDate?.ToString("d") ?? L["No due date"].Value)
                                                     @if (task.DueDate.HasValue && task.DueDate < DateTime.Today && task.Status != Models.TaskStatus.Completed)
                                                     {
                                                         <span class="text-danger ms-1">
-                                                            <i class="bi bi-exclamation-triangle"></i> Overdue
+                                                            <i class="bi bi-exclamation-triangle"></i> @L["Overdue"]
                                                         </span>
                                                     }
                                                 </td>
@@ -156,12 +157,12 @@
             <div class="col-md-4">
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0">Team Members</h5>
+                        <h5 class="mb-0">@L["Team Members"]</h5>
                     </div>
                     <div class="card-body">
                         @if (!project.ProjectMembers.Any())
                         {
-                            <p class="text-muted">No team members assigned.</p>
+                            <p class="text-muted">@L["No team members assigned."]</p>
                         }
                         else
                         {
@@ -188,7 +189,7 @@
                                                 <div>
                                                     <strong>@member.User.DisplayName</strong>
                                                 </div>
-                                                <small class="text-muted">@member.Role</small>
+                                                <small class="text-muted">@L[member.Role]</small>
                                             </div>
                                         </div>
                                     </div>
@@ -200,29 +201,29 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">Statistics</h5>
+                        <h5 class="mb-0">@L["Statistics"]</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label class="text-muted small">Total Tasks</label>
+                            <label class="text-muted small">@L["Total Tasks"]</label>
                             <h4>@project.Tasks.Count</h4>
                         </div>
                         <div class="mb-3">
-                            <label class="text-muted small">Completed Tasks</label>
+                            <label class="text-muted small">@L["Completed Tasks"]</label>
                             <h4>@project.Tasks.Count(t => t.Status == Models.TaskStatus.Completed)</h4>
                         </div>
                         <div class="mb-3">
-                            <label class="text-muted small">In Progress</label>
+                            <label class="text-muted small">@L["In Progress"]</label>
                             <h4>@project.Tasks.Count(t => t.Status == Models.TaskStatus.InProgress)</h4>
                         </div>
                         <div class="mb-3">
-                            <label class="text-muted small">Overdue Tasks</label>
+                            <label class="text-muted small">@L["Overdue Tasks"]</label>
                             <h4 class="@(project.Tasks.Count(t => t.DueDate.HasValue && t.DueDate < DateTime.Today && t.Status != Models.TaskStatus.Completed) > 0 ? "text-danger" : "")">
                                 @project.Tasks.Count(t => t.DueDate.HasValue && t.DueDate < DateTime.Today && t.Status != Models.TaskStatus.Completed)
                             </h4>
                         </div>
                         <div>
-                            <label class="text-muted small">Team Size</label>
+                            <label class="text-muted small">@L["Team Size"]</label>
                             <h4>@project.ProjectMembers.Count</h4>
                         </div>
                     </div>

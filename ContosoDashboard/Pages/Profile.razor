@@ -6,13 +6,15 @@
 @attribute [Authorize]
 @inject IUserService UserService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
+@inject NavigationManager NavigationManager
 
-<PageTitle>My Profile - ContosoDashboard</PageTitle>
+<PageTitle>@L["My Profile"] - ContosoDashboard</PageTitle>
 
 <div class="container">
     <div class="row mb-4">
         <div class="col">
-            <h1>My Profile</h1>
+            <h1>@L["My Profile"]</h1>
         </div>
     </div>
 
@@ -22,69 +24,81 @@
             <div class="col-md-8">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Profile Information</h5>
+                        <h5 class="card-title">@L["Profile Information"]</h5>
                         
                         <EditForm Model="@user" OnValidSubmit="HandleValidSubmit">
                             <DataAnnotationsValidator />
                             <ValidationSummary />
 
                             <div class="mb-3">
-                                <label class="form-label">Display Name</label>
+                                <label class="form-label">@L["Display Name"]</label>
                                 <InputText class="form-control" @bind-Value="user.DisplayName" />
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Email</label>
+                                <label class="form-label">@L["Email"]</label>
                                 <InputText class="form-control" @bind-Value="user.Email" disabled />
-                                <small class="form-text text-muted">Email cannot be changed</small>
+                                <small class="form-text text-muted">@L["Email cannot be changed"]</small>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Phone Number</label>
+                                <label class="form-label">@L["Phone Number"]</label>
                                 <InputText class="form-control" @bind-Value="user.PhoneNumber" />
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Department</label>
+                                <label class="form-label">@L["Department"]</label>
                                 <InputText class="form-control" @bind-Value="user.Department" />
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Job Title</label>
+                                <label class="form-label">@L["Job Title"]</label>
                                 <InputText class="form-control" @bind-Value="user.JobTitle" />
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Availability Status</label>
+                                <label class="form-label">@L["Availability Status"]</label>
                                 <InputSelect class="form-select" @bind-Value="user.AvailabilityStatus">
-                                    <option value="@AvailabilityStatus.Available">Available</option>
-                                    <option value="@AvailabilityStatus.Busy">Busy</option>
-                                    <option value="@AvailabilityStatus.InMeeting">In Meeting</option>
-                                    <option value="@AvailabilityStatus.OutOfOffice">Out of Office</option>
+                                    <option value="@AvailabilityStatus.Available">@L["Available"]</option>
+                                    <option value="@AvailabilityStatus.Busy">@L["Busy"]</option>
+                                    <option value="@AvailabilityStatus.InMeeting">@L["In Meeting"]</option>
+                                    <option value="@AvailabilityStatus.OutOfOffice">@L["Out of Office"]</option>
                                 </InputSelect>
                             </div>
 
-                            <h6 class="mt-4">Notification Preferences</h6>
+                            <div class="mb-3">
+                                <label class="form-label" for="preferred-culture">@L["Default Language"]</label>
+                                <InputSelect id="preferred-culture" class="form-select" @bind-Value="user.PreferredCulture">
+                                    <option value="">@L["Use login language"]</option>
+                                    <option value="en-US">English</option>
+                                    <option value="pt-BR">Português (Brasil)</option>
+                                    <option value="es">Español</option>
+                                    <option value="de">Deutsch</option>
+                                </InputSelect>
+                                <small class="form-text text-muted">@L["The profile language takes precedence over the login selection."]</small>
+                            </div>
+
+                            <h6 class="mt-4">@L["Notification Preferences"]</h6>
                             
                             <div class="form-check mb-2">
                                 <InputCheckbox class="form-check-input" @bind-Value="user.EmailNotificationsEnabled" id="emailNotif" />
                                 <label class="form-check-label" for="emailNotif">
-                                    Email Notifications
+                                    @L["Email Notifications"]
                                 </label>
                             </div>
 
                             <div class="form-check mb-3">
                                 <InputCheckbox class="form-check-input" @bind-Value="user.InAppNotificationsEnabled" id="appNotif" />
                                 <label class="form-check-label" for="appNotif">
-                                    In-App Notifications
+                                    @L["In-App Notifications"]
                                 </label>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            <button type="submit" class="btn btn-primary">@L["Save Changes"]</button>
                             @if (showSuccessMessage)
                             {
                                 <span class="text-success ms-3">
-                                    <i class="bi bi-check-circle"></i> Profile updated successfully!
+                                    <i class="bi bi-check-circle"></i> @L["Profile updated successfully!"]
                                 </span>
                             }
                         </EditForm>
@@ -98,7 +112,7 @@
                         <div class="mb-3">
                             @if (!string.IsNullOrEmpty(user.ProfilePhotoUrl))
                             {
-                                <img src="@user.ProfilePhotoUrl" alt="Profile" class="rounded-circle" style="width: 150px; height: 150px; object-fit: cover;" />
+                                <img src="@user.ProfilePhotoUrl" alt="@(L["Profile"])" class="rounded-circle" style="width: 150px; height: 150px; object-fit: cover;" />
                             }
                             else
                             {
@@ -110,17 +124,17 @@
                         </div>
                         
                         <h5>@user.DisplayName</h5>
-                        <p class="text-muted mb-1">@user.JobTitle</p>
-                        <p class="text-muted">@user.Department</p>
+                        <p class="text-muted mb-1">@(user.JobTitle is null ? string.Empty : L[user.JobTitle])</p>
+                        <p class="text-muted">@(user.Department is null ? string.Empty : L[user.Department])</p>
                         
                         <hr />
                         
                         <div class="text-start">
-                            <p><strong>Role:</strong> @user.Role</p>
-                            <p><strong>Member Since:</strong> @user.CreatedDate.ToString("MMMM yyyy")</p>
+                            <p><strong>@L["Role:"]</strong> @L[user.Role.ToString()]</p>
+                            <p><strong>@L["Member Since:"]</strong> @user.CreatedDate.ToString("MMMM yyyy")</p>
                             @if (user.LastLoginDate.HasValue)
                             {
-                                <p><strong>Last Login:</strong> @user.LastLoginDate.Value.ToString("MMM dd, yyyy")</p>
+                                <p><strong>@L["Last Login:"]</strong> @user.LastLoginDate.Value.ToString("d")</p>
                             }
                         </div>
                     </div>
@@ -130,7 +144,7 @@
     }
     else
     {
-        <p><em>Loading...</em></p>
+        <p><em>@L["Loading..."]</em></p>
     }
 </div>
 
@@ -163,6 +177,15 @@
             var success = await UserService.UpdateUserProfileAsync(user, currentUserId);
             if (success)
             {
+                if (user.PreferredCulture is "en-US" or "pt-BR")
+                {
+                    var returnUrl = Uri.EscapeDataString("/profile");
+                    NavigationManager.NavigateTo(
+                        $"/culture/set?culture={user.PreferredCulture}&returnUrl={returnUrl}",
+                        forceLoad: true);
+                    return;
+                }
+
                 showSuccessMessage = true;
                 
                 // Hide success message after 3 seconds

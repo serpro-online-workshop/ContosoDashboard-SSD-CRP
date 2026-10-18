@@ -37,6 +37,9 @@ public class User
     [MaxLength(20)]
     public string? PhoneNumber { get; set; }
 
+    [MaxLength(10)]
+    public string? PreferredCulture { get; set; }
+
     public bool EmailNotificationsEnabled { get; set; } = true;
 
     public bool InAppNotificationsEnabled { get; set; } = true;

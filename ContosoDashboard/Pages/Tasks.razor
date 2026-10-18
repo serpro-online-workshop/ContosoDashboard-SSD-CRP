@@ -5,18 +5,20 @@
 @using System.Security.Claims
 @attribute [Authorize]
 @inject ITaskService TaskService
+@inject IProjectService ProjectService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
 
-<PageTitle>My Tasks - ContosoDashboard</PageTitle>
+<PageTitle>@L["My Tasks"] - ContosoDashboard</PageTitle>
 
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col">
-            <h1>My Tasks</h1>
+            <h1>@L["My Tasks"]</h1>
         </div>
         <div class="col-auto">
             <button class="btn btn-primary" @onclick="ShowCreateTaskModal">
-                <i class="bi bi-plus-circle"></i> New Task
+                <i class="bi bi-plus-circle"></i> @L["New Task"]
             </button>
         </div>
     </div>
@@ -24,28 +26,28 @@
     <!-- Filters -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <label>Status</label>
+            <label>@L["Status"]</label>
             <select class="form-select" @bind="filterStatus">
-                <option value="">All</option>
-                <option value="@Models.TaskStatus.NotStarted">Not Started</option>
-                <option value="@Models.TaskStatus.InProgress">In Progress</option>
-                <option value="@Models.TaskStatus.Completed">Completed</option>
+                <option value="">@L["All"]</option>
+                <option value="@Models.TaskStatus.NotStarted">@L["Not Started"]</option>
+                <option value="@Models.TaskStatus.InProgress">@L["In Progress"]</option>
+                <option value="@Models.TaskStatus.Completed">@L["Completed"]</option>
             </select>
         </div>
         <div class="col-md-3">
-            <label>Priority</label>
+            <label>@L["Priority"]</label>
             <select class="form-select" @bind="filterPriority">
-                <option value="">All</option>
-                <option value="@TaskPriority.Low">Low</option>
-                <option value="@TaskPriority.Medium">Medium</option>
-                <option value="@TaskPriority.High">High</option>
-                <option value="@TaskPriority.Critical">Critical</option>
+                <option value="">@L["All"]</option>
+                <option value="@TaskPriority.Low">@L["Low"]</option>
+                <option value="@TaskPriority.Medium">@L["Medium"]</option>
+                <option value="@TaskPriority.High">@L["High"]</option>
+                <option value="@TaskPriority.Critical">@L["Critical"]</option>
             </select>
         </div>
         <div class="col-md-3">
             <label>&nbsp;</label>
             <button class="btn btn-secondary d-block w-100" @onclick="ApplyFilters">
-                Apply Filters
+                @L["Apply Filters"]
             </button>
         </div>
     </div>
@@ -53,11 +55,11 @@
     <!-- Tasks List -->
     @if (tasks == null)
     {
-        <p><em>Loading...</em></p>
+        <p><em>@L["Loading..."]</em></p>
     }
     else if (!tasks.Any())
     {
-        <div class="alert alert-info">No tasks found.</div>
+        <div class="alert alert-info">@L["No tasks found."]</div>
     }
     else
     {
@@ -65,12 +67,12 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Title</th>
-                        <th>Priority</th>
-                        <th>Status</th>
-                        <th>Due Date</th>
-                        <th>Project</th>
-                        <th>Actions</th>
+                        <th>@L["Title"]</th>
+                        <th>@L["Priority"]</th>
+                        <th>@L["Status"]</th>
+                        <th>@L["Due Date"]</th>
+                        <th>@L["Project"]</th>
+                        <th>@L["Actions"]</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -78,25 +80,25 @@
                     {
                         <tr>
                             <td>
-                                <strong>@task.Title</strong>
+                                <strong>@L[task.Title]</strong>
                                 @if (!string.IsNullOrEmpty(task.Description))
                                 {
                                     <br />
-                                    <small class="text-muted">@task.Description</small>
+                                    <small class="text-muted">@L[task.Description]</small>
                                 }
                             </td>
                             <td>
                                 <span class="badge bg-@GetPriorityColor(task.Priority)">
-                                    @task.Priority
+                                    @L[task.Priority.ToString()]
                                 </span>
                             </td>
                             <td>
                                 <select class="form-select form-select-sm" 
                                         value="@task.Status" 
                                         @onchange="@(e => UpdateTaskStatus(task.TaskId, Enum.Parse<Models.TaskStatus>(e.Value?.ToString() ?? "NotStarted")))">
-                                    <option value="@Models.TaskStatus.NotStarted">Not Started</option>
-                                    <option value="@Models.TaskStatus.InProgress">In Progress</option>
-                                    <option value="@Models.TaskStatus.Completed">Completed</option>
+                                    <option value="@Models.TaskStatus.NotStarted">@L["Not Started"]</option>
+                                    <option value="@Models.TaskStatus.InProgress">@L["In Progress"]</option>
+                                    <option value="@Models.TaskStatus.Completed">@L["Completed"]</option>
                                 </select>
                             </td>
                             <td>
@@ -104,18 +106,18 @@
                                 {
                                     var isOverdue = task.DueDate.Value < DateTime.UtcNow && task.Status != Models.TaskStatus.Completed;
                                     <span class="@(isOverdue ? "text-danger fw-bold" : "")">
-                                        @task.DueDate.Value.ToString("MMM dd, yyyy")
+                                        @task.DueDate.Value.ToString("d")
                                     </span>
                                 }
                                 else
                                 {
-                                    <span class="text-muted">No due date</span>
+                                    <span class="text-muted">@L["No due date"]</span>
                                 }
                             </td>
                             <td>
                                 @if (task.Project != null)
                                 {
-                                    <a href="/projects/@task.ProjectId">@task.Project.Name</a>
+                                    <a href="/projects/@task.ProjectId">@L[task.Project.Name]</a>
                                 }
                                 else
                                 {
@@ -135,10 +137,89 @@
     }
 </div>
 
+@if (showCreateTaskModal)
+{
+    <div class="modal-backdrop fade show" @onclick="CloseCreateTaskModal"></div>
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@L["Create Task"]</h5>
+                    <button type="button" class="btn-close" aria-label="@L["Close"]" @onclick="CloseCreateTaskModal"></button>
+                </div>
+                <EditForm Model="@newTask" OnValidSubmit="CreateTask">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <ValidationSummary />
+                        @if (!string.IsNullOrEmpty(taskCreationError))
+                        {
+                            <div class="alert alert-danger" role="alert">@taskCreationError</div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label" for="task-title">@L["Task Title"]</label>
+                            <InputText id="task-title" class="form-control" @bind-Value="newTask.Title" maxlength="255" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="task-description">@L["Description"]</label>
+                            <InputTextArea id="task-description" class="form-control" @bind-Value="newTask.Description" maxlength="2000" rows="3" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="task-priority">@L["Priority"]</label>
+                                <InputSelect id="task-priority" class="form-select" @bind-Value="newTask.Priority">
+                                    <option value="@TaskPriority.Low">@L["Low"]</option>
+                                    <option value="@TaskPriority.Medium">@L["Medium"]</option>
+                                    <option value="@TaskPriority.High">@L["High"]</option>
+                                    <option value="@TaskPriority.Critical">@L["Critical"]</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="task-due-date">@L["Due Date"]</label>
+                                <InputDate id="task-due-date" class="form-control" @bind-Value="dueDate" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="task-project">@L["Project (Optional)"]</label>
+                            @if (isLoadingProjects)
+                            {
+                                <div class="form-text">@L["Loading..."]</div>
+                            }
+                            else
+                            {
+                                <InputSelect id="task-project" class="form-select" @bind-Value="selectedProjectId">
+                                    <option value="">@L["No project"]</option>
+                                    @foreach (var project in userProjects)
+                                    {
+                                        <option value="@project.ProjectId">@L[project.Name]</option>
+                                    }
+                                </InputSelect>
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseCreateTaskModal">@L["Cancel"]</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isCreatingTask">
+                            @(isCreatingTask ? L["Creating..."] : L["Create"])
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<TaskItem>? tasks;
+    private List<Project> userProjects = new();
+    private TaskItem newTask = new();
     private string filterStatus = "";
     private string filterPriority = "";
+    private string selectedProjectId = "";
+    private DateTime? dueDate;
+    private string? taskCreationError;
+    private bool showCreateTaskModal;
+    private bool isLoadingProjects;
+    private bool isCreatingTask;
     private int currentUserId = 0;
 
     protected override async Task OnInitializedAsync()
@@ -180,9 +261,74 @@
         }
     }
 
-    private void ShowCreateTaskModal()
+    private async Task ShowCreateTaskModal()
     {
-        // TODO: Implement modal dialog for creating tasks
+        if (currentUserId <= 0)
+        {
+            return;
+        }
+
+        newTask = new TaskItem();
+        selectedProjectId = "";
+        dueDate = null;
+        taskCreationError = null;
+        showCreateTaskModal = true;
+        isLoadingProjects = true;
+
+        try
+        {
+            userProjects = await ProjectService.GetUserProjectsAsync(currentUserId);
+        }
+        catch
+        {
+            userProjects = new List<Project>();
+            taskCreationError = L["Could not load projects. You can still create a task without a project."];
+        }
+        finally
+        {
+            isLoadingProjects = false;
+        }
+    }
+
+    private void CloseCreateTaskModal()
+    {
+        showCreateTaskModal = false;
+        taskCreationError = null;
+    }
+
+    private async Task CreateTask()
+    {
+        if (currentUserId <= 0 || isCreatingTask)
+        {
+            return;
+        }
+
+        isCreatingTask = true;
+        taskCreationError = null;
+        newTask.AssignedUserId = currentUserId;
+        newTask.CreatedByUserId = currentUserId;
+        newTask.Status = Models.TaskStatus.NotStarted;
+        newTask.DueDate = dueDate.HasValue
+            ? DateTime.SpecifyKind(dueDate.Value.Date, DateTimeKind.Utc)
+            : null;
+        newTask.ProjectId = int.TryParse(selectedProjectId, out var projectId) ? projectId : null;
+
+        try
+        {
+            await TaskService.CreateTaskAsync(newTask);
+            filterStatus = "";
+            filterPriority = "";
+            await LoadTasks();
+            showCreateTaskModal = false;
+        }
+        catch
+        {
+            taskCreationError = L["Could not create task. Try again."];
+        }
+        finally
+        {
+            isCreatingTask = false;
+        }
     }
 
     private void ViewTaskDetails(int taskId)

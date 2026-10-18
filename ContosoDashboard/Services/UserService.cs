@@ -73,6 +73,11 @@ public class UserService : IUserService
             return false; // User not authorized to update this profile
         }
 
+        if (!string.IsNullOrWhiteSpace(user.PreferredCulture) && user.PreferredCulture is not ("en-US" or "pt-BR" or "es" or "de"))
+        {
+            return false;
+        }
+
         // Input validation
         if (!string.IsNullOrWhiteSpace(user.DisplayName))
             existingUser.DisplayName = user.DisplayName;
@@ -112,6 +117,7 @@ public class UserService : IUserService
 
         existingUser.EmailNotificationsEnabled = user.EmailNotificationsEnabled;
         existingUser.InAppNotificationsEnabled = user.InAppNotificationsEnabled;
+        existingUser.PreferredCulture = string.IsNullOrWhiteSpace(user.PreferredCulture) ? null : user.PreferredCulture;
 
         await _context.SaveChangesAsync();
         return true;
