@@ -1,0 +1,771 @@
+@page "/documents"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@attribute [Authorize]
+@inject IDocumentService DocumentServiceClient
+@inject IDocumentAuthorizationService DocumentAuthorization
+@inject IProjectService ProjectService
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
+
+<PageTitle>@L["My Documents"] - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>@L["My Documents"]</h1>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_pageError))
+    {
+        <div class="alert alert-danger" role="alert">@_pageError</div>
+    }
+
+    <section class="mb-5" aria-labelledby="upload-heading">
+        <h2 id="upload-heading" class="h4">@L["Upload documents"]</h2>
+        <p class="text-muted">@L["Supported files: PDF, Word, Excel, PowerPoint, text, CSV, JPEG, PNG. Maximum size is 25 MB per file."]</p>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6 col-xl-4">
+                <label for="document-category" class="form-label">@L["Category"]</label>
+                <InputSelect id="document-category" class="form-select" @bind-Value="_category">
+                    <option value="">@L["Choose a category"]</option>
+                    @foreach (var category in Categories)
+                    {
+                        <option value="@category">@L[category]</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-6 col-xl-4">
+                <label for="document-project" class="form-label">@L["Project (Optional)"]</label>
+                <InputSelect id="document-project" class="form-select" @bind-Value="_projectId">
+                    <option value="">@L["Personal document"]</option>
+                    @foreach (var project in _projects)
+                    {
+                        <option value="@project.ProjectId">@project.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-12 col-xl-4">
+                <label for="document-description" class="form-label">@L["Description (optional)"]</label>
+                <InputTextArea id="document-description" class="form-control" maxlength="2000" @bind-Value="_description" />
+            </div>
+            <div class="col-12">
+                <label for="document-tags" class="form-label">@L["Tags (comma-separated, optional)"]</label>
+                <InputText id="document-tags" class="form-control" maxlength="500" @bind-Value="_tags" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="document-files" class="form-label">@L["Select files"]</label>
+            <InputFile id="document-files" OnChange="OnFilesSelected" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png" disabled="@_uploading" class="form-control" />
+        </div>
+
+        @if (_files.Count > 0)
+        {
+            <div class="mb-3">
+                <h3 class="h6">@L["Selected files"]</h3>
+                @foreach (var item in _files)
+                {
+                    <div class="border-bottom py-3">
+                        <div class="row align-items-start g-2">
+                            <div class="col-md-5">
+                                <label class="form-label" for="@($"title-{item.Id}")">@L["Document title for {0}", item.File.Name]</label>
+                                <InputText id="@($"title-{item.Id}")" class="form-control" maxlength="255" @bind-Value="item.Title" disabled="@(_uploading || item.Succeeded == true)" />
+                                <small class="text-muted">@item.File.Name</small>
+                            </div>
+                            <div class="col-md-2">@FormatFileSize(item.File.Size)</div>
+                            <div class="col-md-5">
+                                <span class="@(item.Error is null ? "text-muted" : "text-danger")" role="status">@GetUploadStatus(item)</span>
+                                @if (item.Error is not null)
+                                {
+                                    <div class="text-danger small">@item.Error</div>
+                                }
+                                @if (item.IsUploading)
+                                {
+                                    <div class="progress mt-2" role="progressbar" aria-label="@L["Upload progress for {0}", item.File.Name]" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@item.Progress">
+                                        <div class="progress-bar" style="width: @item.Progress%">@item.Progress%</div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="d-flex gap-2 mb-5">
+                <button type="button" class="btn btn-primary" @onclick="UploadFilesAsync" disabled="@(_uploading || _userId <= 0 || string.IsNullOrWhiteSpace(_category))">
+                    <span class="bi bi-cloud-upload me-1" aria-hidden="true"></span>@L["Upload selected files"]
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="ClearSelection" disabled="@_uploading">@L["Clear selection"]</button>
+            </div>
+        }
+    </section>
+
+    <section aria-labelledby="documents-heading">
+        <h2 id="documents-heading" class="h4">@L["Uploaded documents"]</h2>
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-6 col-xl-3">
+                <label for="document-search" class="form-label">@L["Search documents"]</label>
+                <InputText id="document-search" class="form-control" @bind-Value="_searchText" @onkeydown="HandleSearchKeyDown" />
+            </div>
+            <div class="col-md-6 col-xl-2">
+                <label for="document-filter-category" class="form-label">@L["Category"]</label>
+                <InputSelect id="document-filter-category" class="form-select" @bind-Value="_filterCategory">
+                    <option value="">@L["All categories"]</option>
+                    @foreach (var category in Categories)
+                    {
+                        <option value="@category">@L[category]</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-6 col-xl-2">
+                <label for="document-filter-project" class="form-label">@L["Project"]</label>
+                <InputSelect id="document-filter-project" class="form-select" @bind-Value="_filterProjectId">
+                    <option value="">@L["All projects"]</option>
+                    @foreach (var project in _projects)
+                    {
+                        <option value="@project.ProjectId">@project.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-6 col-xl-2">
+                <label for="document-date-from" class="form-label">@L["Uploaded from"]</label>
+                <InputDate id="document-date-from" class="form-control" @bind-Value="_uploadedFrom" />
+            </div>
+            <div class="col-md-6 col-xl-2">
+                <label for="document-date-to" class="form-label">@L["Uploaded to"]</label>
+                <InputDate id="document-date-to" class="form-control" @bind-Value="_uploadedTo" />
+            </div>
+            <div class="col-md-6 col-xl-1">
+                <label for="document-sort" class="form-label">@L["Sort by"]</label>
+                <InputSelect id="document-sort" class="form-select" @bind-Value="_sortBy">
+                    <option value="@DocumentSortField.Title">@L["Title"]</option>
+                    <option value="@DocumentSortField.UploadedAtUtc">@L["Uploaded"]</option>
+                    <option value="@DocumentSortField.Category">@L["Category"]</option>
+                    <option value="@DocumentSortField.FileSize">@L["Size"]</option>
+                </InputSelect>
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn btn-primary" @onclick="ApplySearchAsync" title="@L["Search documents"]" aria-label="@L["Search documents"]">
+                    <span class="bi bi-search" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn btn-outline-secondary" @onclick="ResetSearchAsync" title="@L["Reset filters"]" aria-label="@L["Reset filters"]">
+                    <span class="bi bi-x-lg" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn btn-outline-secondary" @onclick="ToggleSortDirection" title="@(L[_sortDescending ? "Sort descending" : "Sort ascending"])" aria-label="@(L[_sortDescending ? "Sort descending" : "Sort ascending"])">
+                    <span class="bi @(_sortDescending ? "bi-sort-down" : "bi-sort-up")" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+
+        @if (_searchResult is null)
+        {
+            <p><em>@L["Loading..."]</em></p>
+        }
+        else if (_searchResult.Items.Count == 0)
+        {
+            <p class="text-muted">@L["No documents match your search."]</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">@L["File"]</th>
+                            <th scope="col">@L["Category"]</th>
+                            <th scope="col">@L["Location"]</th>
+                            <th scope="col">@L["Size"]</th>
+                            <th scope="col">@L["Uploaded"]</th>
+                            <th scope="col"><span class="visually-hidden">@L["Actions"]</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var document in _searchResult.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@document.Title</strong>
+                                    <div class="small text-muted">@document.OriginalFileName</div>
+                                    @if (!string.IsNullOrWhiteSpace(document.Description))
+                                    {
+                                        <div class="small">@document.Description</div>
+                                    }
+                                    @if (document.Tags.Count > 0)
+                                    {
+                                        <div class="small text-muted">@string.Join(", ", document.Tags.Select(tag => tag.Value))</div>
+                                    }
+                                </td>
+                                <td>@L[document.Category]</td>
+                                <td>@(document.Project?.Name ?? L["Personal document"].Value)</td>
+                                <td>@FormatFileSize(document.FileSize)</td>
+                                <td>@document.UploadedAtUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</td>
+                                <td class="text-nowrap">
+                                    @if (CanPreview(document.ContentType))
+                                    {
+                                        <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "inline")" target="_blank" rel="noopener" title="@L["Preview"]" aria-label="@L["Preview {0}", document.Title]">
+                                            <span class="bi bi-eye" aria-hidden="true"></span>
+                                        </a>
+                                    }
+                                    <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "attachment")" title="@L["Download"]" aria-label="@L["Download {0}", document.Title]">
+                                        <span class="bi bi-download" aria-hidden="true"></span>
+                                    </a>
+                                    @if (_managementPermissions.GetValueOrDefault(document.DocumentId))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => BeginManagementAsync(document, ManagementAction.Edit)" title="@L["Edit metadata"]" aria-label="@L["Edit {0}", document.Title]"><span class="bi bi-pencil-square" aria-hidden="true"></span></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => BeginManagementAsync(document, ManagementAction.Replace)" title="@L["Replace file"]" aria-label="@L["Replace file for {0}", document.Title]"><span class="bi bi-arrow-repeat" aria-hidden="true"></span></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => BeginManagementAsync(document, ManagementAction.Delete)" title="@L["Delete document"]" aria-label="@L["Delete {0}", document.Title]"><span class="bi bi-trash" aria-hidden="true"></span></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => BeginManagementAsync(document, ManagementAction.Share)" title="@L["Manage sharing"]" aria-label="@L["Manage sharing for {0}", document.Title]"><span class="bi bi-share" aria-hidden="true"></span></button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (_managedDocument is not null)
+        {
+            <section class="border-top mt-4 pt-3" aria-labelledby="document-management-heading">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 id="document-management-heading" class="h5 mb-0">@L["Manage document: {0}", _managedDocument.Title]</h3>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="CloseManagement" title="@L["Close"]" aria-label="@L["Close"]"><span class="bi bi-x-lg" aria-hidden="true"></span></button>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_managementError))
+                {
+                    <div class="alert alert-danger" role="alert">@_managementError</div>
+                }
+                @if (_managementAction == ManagementAction.Edit)
+                {
+                    <div class="row g-3">
+                        <div class="col-md-6"><label for="edit-document-title" class="form-label">@L["Title"]</label><InputText id="edit-document-title" class="form-control" maxlength="255" @bind-Value="_editTitle" /></div>
+                        <div class="col-md-6"><label for="edit-document-category" class="form-label">@L["Category"]</label><InputSelect id="edit-document-category" class="form-select" @bind-Value="_editCategory">@foreach (var category in Categories) { <option value="@category">@L[category]</option> }</InputSelect></div>
+                        <div class="col-md-6"><label for="edit-document-description" class="form-label">@L["Description (optional)"]</label><InputTextArea id="edit-document-description" class="form-control" maxlength="2000" @bind-Value="_editDescription" /></div>
+                        <div class="col-md-6"><label for="edit-document-tags" class="form-label">@L["Tags (comma-separated, optional)"]</label><InputText id="edit-document-tags" class="form-control" maxlength="500" @bind-Value="_editTags" /></div>
+                    </div>
+                    <button type="button" class="btn btn-primary mt-3" @onclick="SaveMetadataAsync">@L["Save Changes"]</button>
+                }
+                else if (_managementAction == ManagementAction.Replace)
+                {
+                    <label for="replacement-file" class="form-label">@L["Replacement file"]</label>
+                    <InputFile id="replacement-file" OnChange="OnReplacementSelected" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png" class="form-control" />
+                    @if (_replacementFile is not null)
+                    {
+                        <div class="mt-2">@_replacementFile.Name (@FormatFileSize(_replacementFile.Size))</div>
+                    }
+                    <button type="button" class="btn btn-primary mt-3" @onclick="ReplaceFileAsync" disabled="@(_replacementFile is null)">@L["Replace file"]</button>
+                }
+                else if (_managementAction == ManagementAction.Delete)
+                {
+                    <p>@L["Deleting this document permanently removes its file and access records."]</p>
+                    <div class="form-check mb-3"><InputCheckbox id="confirm-document-delete" class="form-check-input" @bind-Value="_deleteConfirmed" /><label class="form-check-label" for="confirm-document-delete">@L["I understand this permanently deletes the document."]</label></div>
+                    <button type="button" class="btn btn-danger" @onclick="DeleteDocumentAsync" disabled="@(!_deleteConfirmed)">@L["Delete permanently"]</button>
+                }
+                else if (_managementAction == ManagementAction.Share)
+                {
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="share-user" class="form-label">@L["Share with a user"]</label>
+                            <InputSelect id="share-user" class="form-select" @bind-Value="_shareRecipientUserId">
+                                <option value="">@L["Choose a user"]</option>
+                                @foreach (var user in _users.Where(user => user.UserId != _userId))
+                                {
+                                    <option value="@user.UserId">@user.DisplayName (@user.Email)</option>
+                                }
+                            </InputSelect>
+                            <button type="button" class="btn btn-outline-primary mt-2" @onclick="ShareWithUserAsync" disabled="@(!_shareRecipientUserId.HasValue)">@L["Share with user"]</button>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="share-department" class="form-label">@L["Share with a department"]</label>
+                            <InputSelect id="share-department" class="form-select" @bind-Value="_shareDepartment">
+                                <option value="">@L["Choose a department"]</option>
+                                @foreach (var department in _users.Where(user => !string.IsNullOrWhiteSpace(user.Department)).Select(user => user.Department!).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value))
+                                {
+                                    <option value="@department">@department</option>
+                                }
+                            </InputSelect>
+                            <button type="button" class="btn btn-outline-primary mt-2" @onclick="ShareWithDepartmentAsync" disabled="@string.IsNullOrWhiteSpace(_shareDepartment)">@L["Share with department"]</button>
+                        </div>
+                    </div>
+                    <h4 class="h6">@L["Current shares"]</h4>
+                    @if (_manageableShares.Count == 0)
+                    {
+                        <p class="text-muted">@L["This document has no active shares."]</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach (var share in _manageableShares)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span>@(share.RecipientUser?.DisplayName ?? share.RecipientDepartment)</span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.DocumentShareId)" title="@L["Revoke share"]" aria-label="@L["Revoke share for {0}", share.RecipientUser?.DisplayName ?? share.RecipientDepartment ?? string.Empty]">
+                                        <span class="bi bi-x-circle" aria-hidden="true"></span>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+            </section>
+        }
+        @if (_searchResult is not null && _searchResult.TotalCount > 0)
+        {
+            <div class="d-flex align-items-center justify-content-between mt-3">
+                <span class="text-muted">@L["Page {0} of {1} ({2} documents)", _searchResult.Page, _searchResult.PageCount, _searchResult.TotalCount]</span>
+                <div class="btn-group" role="group" aria-label="@L["Document pages"]">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => ChangePageAsync(_searchResult.Page - 1)" disabled="@(_searchResult.Page <= 1)" title="@L["Previous page"]" aria-label="@L["Previous page"]">
+                        <span class="bi bi-chevron-left" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => ChangePageAsync(_searchResult.Page + 1)" disabled="@(_searchResult.Page >= _searchResult.PageCount)" title="@L["Next page"]" aria-label="@L["Next page"]">
+                        <span class="bi bi-chevron-right" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private static readonly string[] Categories = ["Project Documents", "Team Resources", "Personal Files", "Reports", "Presentations", "Other"];
+    private readonly List<UploadItem> _files = [];
+    private List<Project> _projects = [];
+    private List<User> _users = [];
+    private readonly Dictionary<int, bool> _managementPermissions = [];
+    private IReadOnlyList<DocumentShare> _manageableShares = Array.Empty<DocumentShare>();
+    private DocumentSearchPage? _searchResult;
+    private Document? _managedDocument;
+    private IBrowserFile? _replacementFile;
+    private ManagementAction _managementAction;
+    private string _category = string.Empty;
+    private string? _description;
+    private string? _tags;
+    private int? _projectId;
+    private int? _filterProjectId;
+    private string? _searchText;
+    private string? _filterCategory;
+    private DateTime? _uploadedFrom;
+    private DateTime? _uploadedTo;
+    private DocumentSortField _sortBy = DocumentSortField.UploadedAtUtc;
+    private bool _sortDescending = true;
+    private int _searchPage = 1;
+    private int _userId;
+    private bool _uploading;
+    private bool _deleteConfirmed;
+    private int? _shareRecipientUserId;
+    private string? _shareDepartment;
+    private string _editTitle = string.Empty;
+    private string? _editDescription;
+    private string _editCategory = string.Empty;
+    private string? _editTags;
+    private string? _managementError;
+    private string? _pageError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim is null || !int.TryParse(userIdClaim.Value, out _userId) || _userId <= 0)
+        {
+            _pageError = L["Your user account could not be identified."].Value;
+            _searchResult = new DocumentSearchPage(Array.Empty<Document>(), 0, 1, 25);
+            return;
+        }
+
+        _projects = await ProjectService.GetUserProjectsAsync(_userId);
+        await LoadDocumentsAsync();
+    }
+
+    private async Task OnFilesSelected(InputFileChangeEventArgs eventArgs)
+    {
+        _pageError = null;
+        try
+        {
+            _files.Clear();
+            foreach (var file in eventArgs.GetMultipleFiles(20))
+            {
+                _files.Add(new UploadItem(file));
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            _pageError = L["You can select up to 20 files at once."].Value;
+        }
+    }
+
+    private async Task UploadFilesAsync()
+    {
+        if (_uploading || _userId <= 0 || _files.Count == 0 || string.IsNullOrWhiteSpace(_category))
+        {
+            return;
+        }
+
+        _uploading = true;
+        _pageError = null;
+        try
+        {
+            foreach (var item in _files.Where(file => file.Succeeded != true))
+            {
+                if (string.IsNullOrWhiteSpace(item.Title))
+                {
+                    item.Error = L["A document title is required."].Value;
+                    continue;
+                }
+
+                item.Error = null;
+                item.IsUploading = true;
+                item.Progress = 0;
+                await InvokeAsync(StateHasChanged);
+                try
+                {
+                    await using var browserStream = item.File.OpenReadStream(DocumentService.MaximumFileSize);
+                    await using var progressStream = new ProgressStream(browserStream, bytesRead => ReportProgress(item, bytesRead));
+                    await DocumentServiceClient.CreateAsync(new DocumentUploadRequest
+                    {
+                        Title = item.Title.Trim(),
+                        Description = _description,
+                        Category = _category,
+                        OriginalFileName = item.File.Name,
+                        ContentType = item.File.ContentType,
+                        FileSize = item.File.Size,
+                        Content = progressStream,
+                        ProjectId = _projectId,
+                        Tags = ParseTags(_tags)
+                    }, _userId);
+
+                    item.Progress = 100;
+                    item.Succeeded = true;
+                }
+                catch (ValidationException)
+                {
+                    item.Error = L["Upload was rejected. Check the title, category, file type and size, project access, and scanner availability."].Value;
+                }
+                catch (Exception)
+                {
+                    item.Error = L["Upload failed because of a storage or service error. Please try again."].Value;
+                }
+                finally
+                {
+                    item.IsUploading = false;
+                }
+            }
+
+            await LoadDocumentsAsync();
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task LoadDocumentsAsync()
+    {
+        _searchResult = await DocumentServiceClient.SearchAsync(new DocumentSearchQuery
+        {
+            SearchText = _searchText,
+            Category = _filterCategory,
+            ProjectId = _filterProjectId,
+            UploadedFromUtc = ToUtcBoundary(_uploadedFrom, endOfDay: false),
+            UploadedToUtc = ToUtcBoundary(_uploadedTo, endOfDay: true),
+            SortBy = _sortBy,
+            Descending = _sortDescending,
+            Page = _searchPage,
+            PageSize = 25
+        }, _userId);
+        _managementPermissions.Clear();
+        foreach (var document in _searchResult.Items)
+        {
+            _managementPermissions[document.DocumentId] = await DocumentAuthorization.CanManageAsync(document.DocumentId, _userId);
+        }
+    }
+
+    private async Task BeginManagementAsync(Document document, ManagementAction action)
+    {
+        _managedDocument = document;
+        _managementAction = action;
+        _managementError = null;
+        _replacementFile = null;
+        _deleteConfirmed = false;
+        _editTitle = document.Title;
+        _editDescription = document.Description;
+        _editCategory = document.Category;
+        _editTags = string.Join(", ", document.Tags.Select(tag => tag.Value));
+        if (_users.Count == 0)
+        {
+            _users = await UserService.GetAllUsersAsync();
+        }
+
+        _manageableShares = action == ManagementAction.Share
+            ? await DocumentServiceClient.GetManageableSharesAsync(document.DocumentId, _userId)
+            : Array.Empty<DocumentShare>();
+    }
+
+    private async Task SaveMetadataAsync()
+    {
+        if (_managedDocument is null) return;
+        try
+        {
+            var updated = await DocumentServiceClient.UpdateMetadataAsync(_managedDocument.DocumentId, new DocumentMetadataUpdate
+            {
+                Title = _editTitle,
+                Description = _editDescription,
+                Category = _editCategory,
+                Tags = ParseTags(_editTags)
+            }, _userId);
+            if (updated is null)
+            {
+                _managementError = L["You are not authorized to manage this document."].Value;
+                return;
+            }
+
+            await FinishManagementAsync();
+        }
+        catch (Exception)
+        {
+            _managementError = L["Document changes could not be saved. Check the values and try again."].Value;
+        }
+    }
+
+    private Task OnReplacementSelected(InputFileChangeEventArgs eventArgs)
+    {
+        _replacementFile = eventArgs.File;
+        _managementError = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task ReplaceFileAsync()
+    {
+        if (_managedDocument is null || _replacementFile is null) return;
+        try
+        {
+            await using var content = _replacementFile.OpenReadStream(DocumentService.MaximumFileSize);
+            var updated = await DocumentServiceClient.ReplaceFileAsync(_managedDocument.DocumentId, new DocumentReplacementRequest
+            {
+                OriginalFileName = _replacementFile.Name,
+                ContentType = _replacementFile.ContentType,
+                FileSize = _replacementFile.Size,
+                Content = content
+            }, _userId);
+            if (updated is null)
+            {
+                _managementError = L["You are not authorized to manage this document."].Value;
+                return;
+            }
+
+            await FinishManagementAsync();
+        }
+        catch (ValidationException)
+        {
+            _managementError = L["Replacement was rejected. The current document was kept unchanged."] .Value;
+        }
+        catch (Exception)
+        {
+            _managementError = L["The replacement failed. The current document was kept unchanged."] .Value;
+        }
+    }
+
+    private async Task DeleteDocumentAsync()
+    {
+        if (_managedDocument is null || !_deleteConfirmed) return;
+        if (!await DocumentServiceClient.DeleteAsync(_managedDocument.DocumentId, _userId, confirmed: true))
+        {
+            _managementError = L["The document could not be deleted or you are not authorized."] .Value;
+            return;
+        }
+
+        await FinishManagementAsync();
+    }
+
+    private Task ShareWithUserAsync() => ShareAsync(new DocumentShareRequest { RecipientUserId = _shareRecipientUserId });
+
+    private Task ShareWithDepartmentAsync() => ShareAsync(new DocumentShareRequest { RecipientDepartment = _shareDepartment });
+
+    private async Task ShareAsync(DocumentShareRequest request)
+    {
+        if (_managedDocument is null) return;
+        try
+        {
+            await DocumentServiceClient.ShareAsync(_managedDocument.DocumentId, request, _userId);
+            _manageableShares = await DocumentServiceClient.GetManageableSharesAsync(_managedDocument.DocumentId, _userId);
+            _shareRecipientUserId = null;
+            _shareDepartment = null;
+            _managementError = null;
+        }
+        catch (ValidationException)
+        {
+            _managementError = L["The document could not be shared with that recipient."] .Value;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _managementError = L["You are not authorized to manage this document."].Value;
+        }
+    }
+
+    private async Task RevokeShareAsync(int shareId)
+    {
+        if (!await DocumentServiceClient.RevokeShareAsync(shareId, _userId))
+        {
+            _managementError = L["The share could not be revoked or you are not authorized."] .Value;
+            return;
+        }
+
+        if (_managedDocument is not null)
+        {
+            _manageableShares = await DocumentServiceClient.GetManageableSharesAsync(_managedDocument.DocumentId, _userId);
+        }
+    }
+
+    private async Task FinishManagementAsync()
+    {
+        _managedDocument = null;
+        _managementError = null;
+        await LoadDocumentsAsync();
+    }
+
+    private void CloseManagement()
+    {
+        _managedDocument = null;
+        _managementError = null;
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        _searchPage = 1;
+        await LoadDocumentsAsync();
+    }
+
+    private async Task ResetSearchAsync()
+    {
+        _searchText = null;
+        _filterCategory = null;
+        _filterProjectId = null;
+        _uploadedFrom = null;
+        _uploadedTo = null;
+        _sortBy = DocumentSortField.UploadedAtUtc;
+        _sortDescending = true;
+        await ApplySearchAsync();
+    }
+
+    private async Task ChangePageAsync(int page)
+    {
+        _searchPage = page;
+        await LoadDocumentsAsync();
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Enter")
+        {
+            await ApplySearchAsync();
+        }
+    }
+
+    private void ToggleSortDirection() => _sortDescending = !_sortDescending;
+
+    private void ClearSelection() => _files.Clear();
+
+    private void ReportProgress(UploadItem item, long bytesRead)
+    {
+        item.BytesRead = Math.Min(item.File.Size, item.BytesRead + bytesRead);
+        item.Progress = item.File.Size == 0 ? 0 : (int)(item.BytesRead * 100 / item.File.Size);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private string GetUploadStatus(UploadItem item) => item.Succeeded == true
+        ? L["Uploaded"].Value
+        : item.Error is not null
+            ? L["Failed"].Value
+            : item.IsUploading
+                ? L["Uploading"].Value
+                : L["Ready"].Value;
+
+    private static IReadOnlyCollection<string> ParseTags(string? tags) => string.IsNullOrWhiteSpace(tags)
+        ? Array.Empty<string>()
+        : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static DateTime? ToUtcBoundary(DateTime? date, bool endOfDay)
+    {
+        if (!date.HasValue)
+        {
+            return null;
+        }
+
+        var localDate = DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Local);
+        if (endOfDay)
+        {
+            localDate = localDate.AddDays(1).AddTicks(-1);
+        }
+
+        return localDate.ToUniversalTime();
+    }
+
+    private static bool CanPreview(string contentType) => contentType is "application/pdf" or "image/jpeg" or "image/png";
+
+    private static string ContentUrl(Document document, string disposition) => $"/documents/{document.DocumentId}/content?disposition={disposition}";
+
+    private string FormatFileSize(long bytes) => L["{0:N0} KB", Math.Max(1, Math.Ceiling(bytes / 1024d))].Value;
+
+    private sealed class UploadItem(IBrowserFile file)
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+        public IBrowserFile File { get; } = file;
+        public string Title { get; set; } = Path.GetFileNameWithoutExtension(file.Name);
+        public int Progress { get; set; }
+        public long BytesRead { get; set; }
+        public bool IsUploading { get; set; }
+        public bool? Succeeded { get; set; }
+        public string? Error { get; set; }
+    }
+
+    private enum ManagementAction
+    {
+        Edit,
+        Replace,
+        Delete,
+        Share
+    }
+
+    private sealed class ProgressStream(Stream inner, Action<long> reportProgress) : Stream
+    {
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var bytesRead = inner.Read(buffer, offset, count);
+            if (bytesRead > 0) reportProgress(bytesRead);
+            return bytesRead;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var bytesRead = await inner.ReadAsync(buffer, cancellationToken);
+            if (bytesRead > 0) reportProgress(bytesRead);
+            return bytesRead;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) inner.Dispose();
+            base.Dispose(disposing);
+        }
+
+        public override ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+}

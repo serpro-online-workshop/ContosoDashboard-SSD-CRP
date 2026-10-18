@@ -17,6 +17,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<ProjectMember> ProjectMembers { get; set; } = null!;
     public DbSet<Announcement> Announcements { get; set; } = null!;
+    public DbSet<Document> Documents { get; set; } = null!;
+    public DbSet<DocumentTag> DocumentTags { get; set; } = null!;
+    public DbSet<DocumentShare> DocumentShares { get; set; } = null!;
+    public DbSet<DocumentActivity> DocumentActivities { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +63,69 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<Notification>()
             .HasIndex(n => new { n.UserId, n.IsRead });
+
+        modelBuilder.Entity<Document>(entity =>
+        {
+            entity.HasIndex(document => document.StorageKey).IsUnique();
+            entity.HasIndex(document => new { document.UploaderId, document.UploadedAtUtc });
+            entity.HasIndex(document => new { document.ProjectId, document.SafetyStatus, document.UploadedAtUtc });
+            entity.HasIndex(document => new { document.SafetyStatus, document.Title });
+            entity.HasOne(document => document.Uploader)
+                .WithMany()
+                .HasForeignKey(document => document.UploaderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(document => document.Project)
+                .WithMany()
+                .HasForeignKey(document => document.ProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(document => document.Task)
+                .WithMany()
+                .HasForeignKey(document => document.TaskId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DocumentTag>(entity =>
+        {
+            entity.HasIndex(tag => new { tag.DocumentId, tag.NormalizedValue }).IsUnique();
+            entity.HasOne(tag => tag.Document)
+                .WithMany(document => document.Tags)
+                .HasForeignKey(tag => tag.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DocumentShare>(entity =>
+        {
+            entity.HasIndex(share => new { share.DocumentId, share.RecipientUserId });
+            entity.HasIndex(share => new { share.DocumentId, share.RecipientDepartment });
+            entity.ToTable(table => table.HasCheckConstraint(
+                "CK_DocumentShares_ExactlyOneRecipient",
+                "(\"RecipientUserId\" IS NOT NULL AND \"RecipientDepartment\" IS NULL) OR (\"RecipientUserId\" IS NULL AND \"RecipientDepartment\" IS NOT NULL)"));
+            entity.HasOne(share => share.Document)
+                .WithMany(document => document.Shares)
+                .HasForeignKey(share => share.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(share => share.SharedByUser)
+                .WithMany()
+                .HasForeignKey(share => share.SharedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(share => share.RecipientUser)
+                .WithMany()
+                .HasForeignKey(share => share.RecipientUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DocumentActivity>(entity =>
+        {
+            entity.HasIndex(activity => new { activity.ActivityType, activity.OccurredAtUtc });
+            entity.HasOne(activity => activity.Document)
+                .WithMany(document => document.Activities)
+                .HasForeignKey(activity => activity.DocumentId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(activity => activity.Actor)
+                .WithMany()
+                .HasForeignKey(activity => activity.ActorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email)

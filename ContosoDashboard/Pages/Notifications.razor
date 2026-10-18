@@ -36,13 +36,23 @@
                             <div class="d-flex w-100 justify-content-between align-items-start">
                                 <div class="flex-grow-1">
                                     <div class="d-flex align-items-center mb-1">
-                                        <h6 class="mb-0 me-2">@notification.Title</h6>
+                                        <h6 class="mb-0 me-2">@(notification.Type switch
+                                        {
+                                            NotificationType.DocumentShare => L["Document shared with you"].Value,
+                                            NotificationType.ProjectDocumentUpload => L["New project document"].Value,
+                                            _ => notification.Title
+                                        })</h6>
                                         <span class="badge bg-@GetPriorityColor(notification.Priority)">
                                             @L[notification.Priority.ToString()]
                                         </span>
                                         <span class="badge bg-secondary ms-2">@L[notification.Type.ToString()]</span>
                                     </div>
-                                    <p class="mb-1">@notification.Message</p>
+                                    <p class="mb-1">@(notification.Type switch
+                                    {
+                                        NotificationType.DocumentShare => L["A document was shared with you: {0}", notification.Message].Value,
+                                        NotificationType.ProjectDocumentUpload => L["A project document was uploaded: {0}", notification.Message].Value,
+                                        _ => notification.Message
+                                    })</p>
                                     <small class="text-muted">@GetRelativeTime(notification.CreatedDate)</small>
                                 </div>
                                 @if (!notification.IsRead)

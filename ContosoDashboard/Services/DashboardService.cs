@@ -43,6 +43,17 @@ public class DashboardService : IDashboardService
                 .CountAsync(n => n.UserId == userId && !n.IsRead)
         };
 
+        summary.DocumentCount = await _context.Documents
+            .CountAsync(document => document.UploaderId == userId && document.SafetyStatus == DocumentSafetyStatus.Clean);
+        summary.RecentDocuments = await _context.Documents
+            .AsNoTracking()
+            .Where(document => document.UploaderId == userId && document.SafetyStatus == DocumentSafetyStatus.Clean)
+            .Include(document => document.Project)
+            .OrderByDescending(document => document.UploadedAtUtc)
+            .ThenByDescending(document => document.DocumentId)
+            .Take(5)
+            .ToListAsync();
+
         return summary;
     }
 
@@ -67,4 +78,6 @@ public class DashboardSummary
     public int TasksDueToday { get; set; }
     public int ActiveProjects { get; set; }
     public int UnreadNotifications { get; set; }
+    public int DocumentCount { get; set; }
+    public List<Document> RecentDocuments { get; set; } = [];
 }

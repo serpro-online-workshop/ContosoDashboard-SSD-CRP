@@ -1,0 +1,108 @@
+@page "/documents/reports"
+@using System.Security.Claims
+@attribute [Authorize(Roles = "Administrator")]
+@inject DocumentReportService ReportService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
+
+<PageTitle>@L["Document Reports"] - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4"><div class="col"><h1>@L["Document Reports"]</h1></div></div>
+    <div class="row g-3 align-items-end mb-4">
+        <div class="col-md-4"><label for="report-from" class="form-label">@L["Uploaded from"]</label><InputDate id="report-from" class="form-control" @bind-Value="_from" /></div>
+        <div class="col-md-4"><label for="report-to" class="form-label">@L["Uploaded to"]</label><InputDate id="report-to" class="form-control" @bind-Value="_to" /></div>
+        <div class="col-md-4"><button type="button" class="btn btn-primary" @onclick="LoadReportAsync">@L["Generate report"]</button></div>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+    @if (_report is not null)
+    {
+        <div class="row g-4">
+            <section class="col-lg-4" aria-labelledby="report-types-heading">
+                <h2 id="report-types-heading" class="h5">@L["File types"]</h2>
+                @if (_report.FileTypeCounts.Count == 0)
+                {
+                    <p class="text-muted">@L["No report data for this period."]</p>
+                }
+                else
+                {
+                    <table class="table"><thead><tr><th scope="col">@L["File type"]</th><th scope="col">@L["Documents"]</th></tr></thead><tbody>
+                        @foreach (var entry in _report.FileTypeCounts.OrderBy(entry => entry.Key))
+                        {
+                            <tr><td>@entry.Key</td><td>@entry.Value</td></tr>
+                        }
+                    </tbody></table>
+                }
+            </section>
+            <section class="col-lg-4" aria-labelledby="report-uploaders-heading">
+                <h2 id="report-uploaders-heading" class="h5">@L["Uploads by user"]</h2>
+                <table class="table"><thead><tr><th scope="col">@L["User ID"]</th><th scope="col">@L["Documents"]</th></tr></thead><tbody>
+                    @foreach (var entry in _report.UploadsByUploader.OrderByDescending(entry => entry.Value))
+                    {
+                        <tr><td>@entry.Key</td><td>@entry.Value</td></tr>
+                    }
+                </tbody></table>
+            </section>
+            <section class="col-lg-4" aria-labelledby="report-activity-heading">
+                <h2 id="report-activity-heading" class="h5">@L["Document activity"]</h2>
+                <table class="table"><thead><tr><th scope="col">@L["Activity"]</th><th scope="col">@L["Events"]</th></tr></thead><tbody>
+                    @foreach (var entry in _report.ActivityCounts.OrderBy(entry => entry.Key))
+                    {
+                        <tr><td>@L[entry.Key.ToString()]</td><td>@entry.Value</td></tr>
+                    }
+                </tbody></table>
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private DocumentReportSnapshot? _report;
+    private DateTime? _from;
+    private DateTime? _to;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadReportAsync();
+
+    private async Task LoadReportAsync()
+    {
+        _error = null;
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userIdValue = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdValue, out var userId) || userId <= 0)
+        {
+            _report = null;
+            _error = L["Your user account could not be identified."].Value;
+            return;
+        }
+
+        try
+        {
+            _report = await ReportService.GetAdminReportAsync(userId, ToUtc(_from), ToUtc(_to, endOfDay: true));
+        }
+        catch (ArgumentException)
+        {
+            _report = null;
+            _error = L["The report start date must be on or before the end date."].Value;
+        }
+    }
+
+    private static DateTime? ToUtc(DateTime? value, bool endOfDay = false)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        var localDate = DateTime.SpecifyKind(value.Value.Date, DateTimeKind.Local);
+        if (endOfDay)
+        {
+            localDate = localDate.AddDays(1).AddTicks(-1);
+        }
+
+        return localDate.ToUniversalTime();
+    }
+}

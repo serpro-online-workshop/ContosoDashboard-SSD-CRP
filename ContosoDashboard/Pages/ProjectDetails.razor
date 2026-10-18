@@ -5,6 +5,7 @@
 @using System.Security.Claims
 @attribute [Authorize]
 @inject IProjectService ProjectService
+@inject IDocumentService DocumentService
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IStringLocalizer<SharedResource> L
@@ -152,6 +153,61 @@
                         }
                     </div>
                 </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">@L["Project Documents"]</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_projectDocuments is null)
+                        {
+                            <p><em>@L["Loading..."]</em></p>
+                        }
+                        else if (_projectDocuments.Count == 0)
+                        {
+                            <p class="text-muted mb-0">@L["No project documents found."]</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">@L["Title"]</th>
+                                            <th scope="col">@L["Category"]</th>
+                                            <th scope="col">@L["Uploaded"]</th>
+                                            <th scope="col"><span class="visually-hidden">@L["Actions"]</span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var document in _projectDocuments)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <strong>@document.Title</strong>
+                                                    <div class="small text-muted">@document.OriginalFileName</div>
+                                                </td>
+                                                <td>@L[document.Category]</td>
+                                                <td>@document.UploadedAtUtc.ToLocalTime().ToString("d", CultureInfo.CurrentCulture)</td>
+                                                <td class="text-nowrap">
+                                                    @if (CanPreview(document.ContentType))
+                                                    {
+                                                        <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "inline")" target="_blank" rel="noopener" title="@L["Preview"]" aria-label="@L["Preview {0}", document.Title]">
+                                                            <span class="bi bi-eye" aria-hidden="true"></span>
+                                                        </a>
+                                                    }
+                                                    <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "attachment")" title="@L["Download"]" aria-label="@L["Download {0}", document.Title]">
+                                                        <span class="bi bi-download" aria-hidden="true"></span>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
             </div>
 
             <div class="col-md-4">
@@ -238,6 +294,7 @@
     public int ProjectId { get; set; }
 
     private Project? project;
+    private IReadOnlyList<Document>? _projectDocuments;
     private int currentUserId = 0;
 
     protected override async Task OnInitializedAsync()
@@ -254,6 +311,18 @@
         if (currentUserId > 0)
         {
             project = await ProjectService.GetProjectByIdAsync(ProjectId, currentUserId);
+            if (project is not null)
+            {
+                var result = await DocumentService.SearchAsync(new DocumentSearchQuery
+                {
+                    ProjectId = ProjectId,
+                    SortBy = DocumentSortField.UploadedAtUtc,
+                    Descending = true,
+                    Page = 1,
+                    PageSize = 500
+                }, currentUserId);
+                _projectDocuments = result.Items;
+            }
         }
         
         if (project == null)
@@ -273,6 +342,10 @@
             _ => "secondary"
         };
     }
+
+    private static bool CanPreview(string contentType) => contentType is "application/pdf" or "image/jpeg" or "image/png";
+
+    private static string ContentUrl(Document document, string disposition) => $"/documents/{document.DocumentId}/content?disposition={disposition}";
 
     private string GetTaskStatusColor(Models.TaskStatus status)
     {

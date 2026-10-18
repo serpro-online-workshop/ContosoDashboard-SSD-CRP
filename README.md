@@ -53,13 +53,14 @@ This application includes a **mock authentication system** designed for training
 
 ## Overview
 
-ContosoDashboard is built using ASP.NET Core 8.0 with Blazor Server and provides a centralized platform for:
+ContosoDashboard is built using ASP.NET Core 10 with Blazor Server and provides a centralized platform for:
 
 - Task management and tracking
 - Project oversight and collaboration
 - Team coordination
 - Notifications and announcements
 - User profile management
+- Local document upload, search, project attachments, sharing, and administrator reports
 
 ## Features
 
@@ -140,6 +141,7 @@ public interface IFileStorageService
 - .NET 10.0 SDK
 - SQLite (included through the Entity Framework Core provider)
 - Visual Studio 2022 or Visual Studio Code
+- ClamAV is required to accept document uploads. The application starts without it, but uploads remain unavailable until a clean scan completes.
 
 ### Quick Start
 
@@ -160,6 +162,23 @@ public interface IFileStorageService
 4. **Login** - Select any user from the dropdown (no password required)
 
 The application automatically creates and seeds the database on first run with sample users, projects, tasks, and announcements.
+
+### Document Upload and Management
+
+Document scanning uses the locally installed ClamAV executable. The default setting is `MalwareScanner:ExecutablePath=clamscan`; set that value in `ContosoDashboard/appsettings.json` or the environment-specific configuration when the executable is elsewhere. If ClamAV is missing, times out, or returns an error, the upload is rejected and the file is not made available. This fail-closed behavior is intentional.
+
+Document content is stored under `ContosoDashboard/AppData/uploads` by default, outside `wwwroot`. The location can be changed with `DocumentStorage:RootPath`, but it must remain outside the web root. Runtime uploads and staging files are ignored by Git.
+
+From the repository root, restore, build, test, and run the application with:
+
+```sh
+dotnet restore ContosoDashboard/ContosoDashboard.csproj
+dotnet build ContosoDashboard/ContosoDashboard.csproj
+dotnet test ContosoDashboard.Tests/ContosoDashboard.Tests.csproj
+dotnet run --project ContosoDashboard/ContosoDashboard.csproj --urls http://127.0.0.1:5000
+```
+
+Open `http://127.0.0.1:5000`, sign in with a training user, then use **My Documents** to upload and manage files. Uploads are limited to 25 MB per file and supported document/image types. Project documents are visible only to authorized project users. Direct and department shares grant read-only access.
 
 ### Testing Security Features
 

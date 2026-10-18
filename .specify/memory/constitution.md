@@ -1,14 +1,9 @@
 <!--
 Sync Impact Report
-Version change: template/unversioned -> 1.0.0 (initial constitution)
-Modified principles: none
-Added principles:
-- Training-Only Product
-- Offline-First Architecture
-- Authorization and Data Isolation
-- Validated Changes
-- Localized and Accessible UI
-Added sections: Security and Technical Constraints; Development and Quality Workflow
+Version change: 1.0.0 -> 1.1.0 (expanded security requirements for file handling)
+Modified principles:
+- III. Authorization and Data Isolation -> III. Authorization, Data Isolation, and Safe File Handling
+Added sections: none
 Removed sections: none
 Follow-up TODO: confirm the original ratification date.
 This temporary report should be removed before this file is committed.
@@ -30,12 +25,16 @@ application stack is ASP.NET Core 10, Blazor Server, Entity Framework Core, and 
 infrastructure dependencies MUST be accessed through suitable service abstractions so training
 scenarios can remain offline and future migration options remain explicit.
 
-### III. Authorization and Data Isolation
+### III. Authorization, Data Isolation, and Safe File Handling
 Every protected page MUST require authentication, and service operations that read or change
 user-owned data MUST verify the requesting user's access. Project access MUST be limited to its
 manager or members, and users MUST NOT be able to change another user's profile or task data.
-Mock authentication is for training only; production identity and security requirements MUST be
-stated explicitly rather than inferred from this implementation.
+Features that accept files MUST treat uploaded content and original filenames as untrusted. They
+MUST use generated storage identifiers, validate size and file type, store files outside `wwwroot`,
+and authorize every preview or download. Files MUST remain unavailable until malware scanning
+passes; if scanning cannot complete, processing MUST fail closed. Mock authentication is for
+training only; production identity and security requirements MUST be stated explicitly rather than
+inferred from this implementation.
 
 ### IV. Validated Changes
 User input MUST be validated at the UI and service or persistence boundary as appropriate. Data
@@ -60,6 +59,10 @@ input methods.
 	as password-based or production identity verification.
 - Secrets, tokens, and real personal data MUST NOT be committed or included in training seed data.
 - Authorization checks MUST be enforced in services for data access, even when a page is protected.
+- File uploads MUST use generated storage names rather than user-supplied paths, and uploaded files
+	MUST NOT be served directly from a web-accessible directory.
+- File type and size limits MUST be validated before storage. Malware scanning MUST complete before
+	access is granted; unavailable scanning MUST prevent the file from becoming available.
 
 ## Development and Quality Workflow
 
@@ -84,4 +87,4 @@ MINOR for new principles or materially expanded requirements, and PATCH for clar
 non-semantic wording changes. Each review MUST check relevant work against the principles above;
 exceptions MUST be documented and approved rather than implicit.
 
-**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE): confirm original adoption date | **Last Amended**: 2026-10-18
+**Version**: 1.1.0 | **Ratified**: TODO(RATIFICATION_DATE): confirm original adoption date | **Last Amended**: 2026-10-18

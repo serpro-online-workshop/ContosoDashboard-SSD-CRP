@@ -21,7 +21,7 @@
     @if (summary != null)
     {
         <div class="row mb-4">
-            <div class="col-md-3 mb-3">
+            <div class="col-md-4 col-xl mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">@L["Active Tasks"]</h5>
@@ -29,7 +29,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
+            <div class="col-md-4 col-xl mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">@L["Due Today"]</h5>
@@ -37,7 +37,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
+            <div class="col-md-4 col-xl mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">@L["Active Projects"]</h5>
@@ -45,11 +45,19 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
+            <div class="col-md-4 col-xl mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">@L["Notifications"]</h5>
                         <p class="card-text display-4 text-danger">@summary.UnreadNotifications</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 col-xl mb-3">
+                <div class="card summary-card">
+                    <div class="card-body">
+                        <h5 class="card-title">@L["Documents"]</h5>
+                        <p class="card-text display-4">@summary.DocumentCount</p>
                     </div>
                 </div>
             </div>
@@ -87,6 +95,9 @@
                 <a href="/projects" class="list-group-item list-group-item-action">
                     <i class="bi bi-folder"></i> @L["View My Projects"]
                 </a>
+                <a href="/documents" class="list-group-item list-group-item-action">
+                    <i class="bi bi-file-earmark-text"></i> @L["View My Documents"]
+                </a>
                 <a href="/notifications" class="list-group-item list-group-item-action">
                     <i class="bi bi-bell"></i> @L["View Notifications"]
                 </a>
@@ -105,10 +116,20 @@
                     {
                         <div class="list-group-item @(!notification.IsRead ? "bg-light" : "")">
                             <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">@notification.Title</h6>
+                                <h6 class="mb-1">@(notification.Type switch
+                                {
+                                    NotificationType.DocumentShare => L["Document shared with you"].Value,
+                                    NotificationType.ProjectDocumentUpload => L["New project document"].Value,
+                                    _ => notification.Title
+                                })</h6>
                                 <small>@GetRelativeTime(notification.CreatedDate)</small>
                             </div>
-                            <p class="mb-1">@notification.Message</p>
+                            <p class="mb-1">@(notification.Type switch
+                            {
+                                NotificationType.DocumentShare => L["A document was shared with you: {0}", notification.Message].Value,
+                                NotificationType.ProjectDocumentUpload => L["A project document was uploaded: {0}", notification.Message].Value,
+                                _ => notification.Message
+                            })</p>
                         </div>
                     }
                 </div>
@@ -119,6 +140,35 @@
             }
         </div>
     </div>
+
+    @if (summary is not null)
+    {
+        <section class="mt-4" aria-labelledby="recent-documents-heading">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 id="recent-documents-heading" class="h4 mb-0">@L["Recent Documents"]</h2>
+                <a href="/documents" class="btn btn-sm btn-outline-secondary">@L["View all documents"]</a>
+            </div>
+            @if (summary.RecentDocuments.Count == 0)
+            {
+                <p class="text-muted">@L["No recent documents"]</p>
+            }
+            else
+            {
+                <div class="list-group">
+                    @foreach (var document in summary.RecentDocuments)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>@document.Title</strong>
+                                <div class="small text-muted">@L[document.Category] · @(document.Project?.Name ?? L["Personal document"].Value)</div>
+                            </div>
+                            <a class="btn btn-sm btn-outline-secondary" href="/documents/@document.DocumentId/content?disposition=attachment" title="@L["Download"]" aria-label="@L["Download {0}", document.Title]"><span class="bi bi-download" aria-hidden="true"></span></a>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    }
 </div>
 
 @code {

@@ -1,0 +1,88 @@
+@page "/documents/shared"
+@using System.Security.Claims
+@attribute [Authorize]
+@inject IDocumentService DocumentService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
+
+<PageTitle>@L["Shared with Me"] - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>@L["Shared with Me"]</h1>
+        </div>
+    </div>
+
+    @if (_documents is null)
+    {
+        <p><em>@L["Loading..."]</em></p>
+    }
+    else if (_documents.Count == 0)
+    {
+        <p class="text-muted">@L["No documents have been shared with you."]</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">@L["Title"]</th>
+                        <th scope="col">@L["Category"]</th>
+                        <th scope="col">@L["Shared document owner"]</th>
+                        <th scope="col">@L["Uploaded"]</th>
+                        <th scope="col"><span class="visually-hidden">@L["Actions"]</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var document in _documents)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@document.Title</strong>
+                                <div class="small text-muted">@document.OriginalFileName</div>
+                            </td>
+                            <td>@L[document.Category]</td>
+                            <td>@document.Uploader.DisplayName</td>
+                            <td>@document.UploadedAtUtc.ToLocalTime().ToString("d", CultureInfo.CurrentCulture)</td>
+                            <td class="text-nowrap">
+                                @if (CanPreview(document.ContentType))
+                                {
+                                    <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "inline")" target="_blank" rel="noopener" title="@L["Preview"]" aria-label="@L["Preview {0}", document.Title]">
+                                        <span class="bi bi-eye" aria-hidden="true"></span>
+                                    </a>
+                                }
+                                <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "attachment")" title="@L["Download"]" aria-label="@L["Download {0}", document.Title]">
+                                    <span class="bi bi-download" aria-hidden="true"></span>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<Document>? _documents;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userIdValue = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(userIdValue, out var userId) && userId > 0)
+        {
+            _documents = await DocumentService.GetSharedWithMeAsync(userId);
+        }
+        else
+        {
+            _documents = Array.Empty<Document>();
+        }
+    }
+
+    private static bool CanPreview(string contentType) => contentType is "application/pdf" or "image/jpeg" or "image/png";
+
+    private static string ContentUrl(Document document, string disposition) => $"/documents/{document.DocumentId}/content?disposition={disposition}";
+}

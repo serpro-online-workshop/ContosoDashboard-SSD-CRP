@@ -1,0 +1,238 @@
+@page "/tasks/{taskId:int}"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@attribute [Authorize]
+@inject ITaskService TaskService
+@inject IDocumentService DocumentServiceClient
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
+
+<PageTitle>@(_task is null ? L["Task Details"] : L["{0} - Task Details", _task.Title]) - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    @if (_task is null)
+    {
+        <p><em>@L["Loading..."]</em></p>
+    }
+    else
+    {
+        <nav aria-label="@L["Breadcrumb"]">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/tasks">@L["My Tasks"]</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@_task.Title</li>
+            </ol>
+        </nav>
+        <h1>@L[_task.Title]</h1>
+        @if (!string.IsNullOrWhiteSpace(_task.Description))
+        {
+            <p>@_task.Description</p>
+        }
+        <dl class="row">
+            <dt class="col-sm-3">@L["Project"]</dt>
+            <dd class="col-sm-9">@(_task.Project?.Name ?? L["No project"].Value)</dd>
+            <dt class="col-sm-3">@L["Assigned To"]</dt>
+            <dd class="col-sm-9">@_task.AssignedUser.DisplayName</dd>
+            <dt class="col-sm-3">@L["Status"]</dt>
+            <dd class="col-sm-9">@L[_task.Status.ToString()]</dd>
+            <dt class="col-sm-3">@L["Due Date"]</dt>
+            <dd class="col-sm-9">@(_task.DueDate?.ToString("d", CultureInfo.CurrentCulture) ?? L["No due date"].Value)</dd>
+        </dl>
+
+        @if (!string.IsNullOrWhiteSpace(_uploadMessage))
+        {
+            <div class="alert alert-info" role="status">@_uploadMessage</div>
+        }
+        <section class="mb-4" aria-labelledby="task-upload-heading">
+            <h2 id="task-upload-heading" class="h4">@L["Attach documents"]</h2>
+            <div class="row g-3 align-items-end mb-3">
+                <div class="col-md-7">
+                    <label for="task-document-files" class="form-label">@L["Select files"]</label>
+                    <InputFile id="task-document-files" OnChange="OnFilesSelected" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png" disabled="@_uploading" class="form-control" />
+                </div>
+                <div class="col-md-5">
+                    <label for="task-document-category" class="form-label">@L["Category"]</label>
+                    <InputSelect id="task-document-category" class="form-select" @bind-Value="_category">
+                        @foreach (var category in Categories)
+                        {
+                            <option value="@category">@L[category]</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+            @if (_files.Count > 0)
+            {
+                @foreach (var item in _files)
+                {
+                    <div class="row align-items-center g-2 border-bottom py-2">
+                        <div class="col-md-8">
+                            <label class="form-label" for="@($"task-file-title-{item.Id}")">@L["Document title for {0}", item.File.Name]</label>
+                            <InputText id="@($"task-file-title-{item.Id}")" class="form-control" maxlength="255" @bind-Value="item.Title" disabled="@_uploading" />
+                        </div>
+                        <div class="col-md-4">@item.File.Name (@FormatFileSize(item.File.Size))</div>
+                    </div>
+                }
+                <button type="button" class="btn btn-primary mt-3" @onclick="UploadAttachmentsAsync" disabled="@_uploading">
+                    <span class="bi bi-paperclip me-1" aria-hidden="true"></span>@L["Upload attachments"]
+                </button>
+            }
+        </section>
+
+        <section aria-labelledby="task-documents-heading">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 id="task-documents-heading" class="h4 mb-0">@L["Task documents"]</h2>
+                <a class="btn btn-sm btn-outline-secondary" href="/documents">@L["Browse all documents"]</a>
+            </div>
+            @if (_documents is null)
+            {
+                <p><em>@L["Loading..."]</em></p>
+            }
+            else if (_documents.Count == 0)
+            {
+                <p class="text-muted">@L["No documents are attached to this task."]</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead><tr><th scope="col">@L["Title"]</th><th scope="col">@L["Category"]</th><th scope="col">@L["Uploaded"]</th><th scope="col"><span class="visually-hidden">@L["Actions"]</span></th></tr></thead>
+                        <tbody>
+                            @foreach (var document in _documents)
+                            {
+                                <tr>
+                                    <td><strong>@document.Title</strong><div class="small text-muted">@document.OriginalFileName</div></td>
+                                    <td>@L[document.Category]</td>
+                                    <td>@document.UploadedAtUtc.ToLocalTime().ToString("d", CultureInfo.CurrentCulture)</td>
+                                    <td class="text-nowrap">
+                                        @if (CanPreview(document.ContentType))
+                                        {
+                                            <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "inline")" target="_blank" rel="noopener" title="@L["Preview"]" aria-label="@L["Preview {0}", document.Title]"><span class="bi bi-eye" aria-hidden="true"></span></a>
+                                        }
+                                        <a class="btn btn-sm btn-outline-secondary" href="@ContentUrl(document, "attachment")" title="@L["Download"]" aria-label="@L["Download {0}", document.Title]"><span class="bi bi-download" aria-hidden="true"></span></a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private static readonly string[] Categories = ["Project Documents", "Team Resources", "Personal Files", "Reports", "Presentations", "Other"];
+    private readonly List<TaskUploadItem> _files = [];
+    private TaskItem? _task;
+    private IReadOnlyList<Document>? _documents;
+    private string _category = "Project Documents";
+    private string? _uploadMessage;
+    private int _userId;
+    private bool _uploading;
+
+    [Parameter]
+    public int TaskId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userIdValue = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdValue, out _userId) || _userId <= 0)
+        {
+            return;
+        }
+
+        _task = await TaskService.GetTaskByIdAsync(TaskId, _userId);
+        if (_task is not null)
+        {
+            _documents = await DocumentServiceClient.GetTaskDocumentsAsync(TaskId, _userId);
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/tasks");
+        }
+    }
+
+    private Task OnFilesSelected(InputFileChangeEventArgs eventArgs)
+    {
+        try
+        {
+            _files.Clear();
+            foreach (var file in eventArgs.GetMultipleFiles(10))
+            {
+                _files.Add(new TaskUploadItem(file));
+            }
+            _uploadMessage = null;
+        }
+        catch (InvalidOperationException)
+        {
+            _uploadMessage = L["You can select up to 10 files at once."].Value;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task UploadAttachmentsAsync()
+    {
+        if (_task is null || _uploading || _files.Count == 0) return;
+        _uploading = true;
+        try
+        {
+            var streams = new List<Stream>();
+            try
+            {
+                var requests = new List<DocumentUploadRequest>();
+                foreach (var item in _files)
+                {
+                    if (string.IsNullOrWhiteSpace(item.Title)) continue;
+                    var stream = item.File.OpenReadStream(DocumentService.MaximumFileSize);
+                    streams.Add(stream);
+                    requests.Add(new DocumentUploadRequest
+                    {
+                        Title = item.Title.Trim(),
+                        Category = _category,
+                        OriginalFileName = item.File.Name,
+                        ContentType = item.File.ContentType,
+                        FileSize = item.File.Size,
+                        Content = stream,
+                        TaskId = _task.TaskId,
+                        ProjectId = _task.ProjectId
+                    });
+                }
+
+                var results = await DocumentServiceClient.CreateManyAsync(requests, _userId);
+                var uploaded = results.Count(result => result.Document is not null);
+                var failed = results.Count - uploaded;
+                _uploadMessage = L["{0} attachments uploaded; {1} failed.", uploaded, failed].Value;
+                _files.Clear();
+                _documents = await DocumentServiceClient.GetTaskDocumentsAsync(_task.TaskId, _userId);
+            }
+            finally
+            {
+                foreach (var stream in streams)
+                {
+                    await stream.DisposeAsync();
+                }
+            }
+        }
+        catch (Exception)
+        {
+            _uploadMessage = L["Attachments could not be uploaded. Check file type, size, and scanner availability."].Value;
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private string FormatFileSize(long bytes) => L["{0:N0} KB", Math.Max(1, Math.Ceiling(bytes / 1024d))].Value;
+    private static bool CanPreview(string contentType) => contentType is "application/pdf" or "image/jpeg" or "image/png";
+    private static string ContentUrl(Document document, string disposition) => $"/documents/{document.DocumentId}/content?disposition={disposition}";
+
+    private sealed class TaskUploadItem(IBrowserFile file)
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+        public IBrowserFile File { get; } = file;
+        public string Title { get; set; } = Path.GetFileNameWithoutExtension(file.Name);
+    }
+}

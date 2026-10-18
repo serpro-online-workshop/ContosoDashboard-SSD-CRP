@@ -8,6 +8,8 @@ public interface INotificationService
 {
     Task<List<Notification>> GetUserNotificationsAsync(int userId, bool unreadOnly = false);
     Task<Notification> CreateNotificationAsync(Notification notification);
+    Task<Notification> CreateDocumentShareNotificationAsync(int userId, string documentTitle);
+    Task<Notification> CreateProjectDocumentUploadNotificationAsync(int userId, string documentTitle);
     Task<bool> MarkAsReadAsync(int notificationId, int requestingUserId);
     Task<int> GetUnreadCountAsync(int userId);
 }
@@ -46,6 +48,24 @@ public class NotificationService : INotificationService
 
         return notification;
     }
+
+    public Task<Notification> CreateDocumentShareNotificationAsync(int userId, string documentTitle) => CreateNotificationAsync(new Notification
+    {
+        UserId = userId,
+        Title = "Document shared with you",
+        Message = documentTitle,
+        Type = NotificationType.DocumentShare,
+        Priority = NotificationPriority.Informational
+    });
+
+    public Task<Notification> CreateProjectDocumentUploadNotificationAsync(int userId, string documentTitle) => CreateNotificationAsync(new Notification
+    {
+        UserId = userId,
+        Title = "New project document",
+        Message = documentTitle,
+        Type = NotificationType.ProjectDocumentUpload,
+        Priority = NotificationPriority.Informational
+    });
 
     public async Task<bool> MarkAsReadAsync(int notificationId, int requestingUserId)
     {
