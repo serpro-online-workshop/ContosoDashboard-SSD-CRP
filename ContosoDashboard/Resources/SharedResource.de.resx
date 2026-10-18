@@ -304,4 +304,25 @@
   <data name="Share"><value>Freigabe</value></data>
   <data name="RejectedUpload"><value>Abgelehnter Upload</value></data>
   <data name="ProjectDocumentUpload"><value>Projektdokument hochgeladen</value></data>
+  <data name="New Project"><value>Neues Projekt</value></data>
+  <data name="Edit Project"><value>Projekt bearbeiten</value></data>
+  <data name="Edit"><value>Bearbeiten</value></data>
+  <data name="Project name"><value>Projektname</value></data>
+  <data name="Select a project manager"><value>Projektleitung auswählen</value></data>
+  <data name="Select a team lead"><value>Teamleitung auswählen</value></data>
+  <data name="Developers"><value>Entwickler</value></data>
+  <data name="Select a team lead before choosing developers."><value>Wähle zuerst eine Teamleitung aus, bevor du Entwickler auswählst.</value></data>
+  <data name="No developers available."><value>Keine Entwickler verfügbar.</value></data>
+  <data name="Saving..."><value>Wird gespeichert...</value></data>
+  <data name="Save project"><value>Projekt speichern</value></data>
+  <data name="Check project details and ensure each person has only one project role."><value>Prüfe die Angaben und stelle sicher, dass jede Person nur eine Projektrolle hat.</value></data>
+  <data name="The project could not be saved. Please try again."><value>Das Projekt konnte nicht gespeichert werden. Bitte versuche es erneut.</value></data>
+  <data name="Project name is required."><value>Ein Projektname ist erforderlich.</value></data>
+  <data name="Project name cannot exceed 255 characters."><value>Der Projektname darf höchstens 255 Zeichen enthalten.</value></data>
+  <data name="Project description cannot exceed 2,000 characters."><value>Die Projektbeschreibung darf höchstens 2.000 Zeichen enthalten.</value></data>
+  <data name="Select a project manager."><value>Wähle eine Projektleitung aus.</value></data>
+  <data name="Select a team lead."><value>Wähle eine Teamleitung aus.</value></data>
+  <data name="Start date is required."><value>Ein Startdatum ist erforderlich.</value></data>
+  <data name="Target completion date is required."><value>Ein geplantes Abschlussdatum ist erforderlich.</value></data>
+  <data name="Target completion date must be on or after the start date."><value>Das geplante Abschlussdatum muss am oder nach dem Startdatum liegen.</value></data>
 </root>

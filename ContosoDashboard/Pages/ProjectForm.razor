@@ -1,0 +1,320 @@
+@page "/projects/new"
+@page "/projects/{projectId:int}/edit"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@attribute [Authorize(Roles = "Administrator")]
+@inject IProjectService ProjectService
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<SharedResource> L
+
+<PageTitle>@(_isEdit ? L["Edit Project"] : L["New Project"]) - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="@L["Breadcrumb"]">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/projects">@L["My Projects"]</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@(_isEdit ? L["Edit Project"] : L["New Project"])</li>
+                </ol>
+            </nav>
+            <h1>@(_isEdit ? L["Edit Project"] : L["New Project"])</h1>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+
+    @if (_loading)
+    {
+        <p><em>@L["Loading..."]</em></p>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="row g-3">
+                <div class="col-lg-8">
+                    <label for="project-name" class="form-label">@L["Project name"]</label>
+                    <InputText id="project-name" class="form-control" maxlength="255" @bind-Value="_form.Name" />
+                    <ValidationMessage For="() => _form.Name" />
+                </div>
+                <div class="col-lg-8">
+                    <label for="project-description" class="form-label">@L["Description"]</label>
+                    <InputTextArea id="project-description" class="form-control" maxlength="2000" rows="4" @bind-Value="_form.Description" />
+                    <ValidationMessage For="() => _form.Description" />
+                </div>
+
+                <div class="col-md-6 col-xl-4">
+                    <label for="project-manager" class="form-label">@L["Project Manager"]</label>
+                    <InputSelect id="project-manager" class="form-select" @bind-Value="_form.ProjectManagerId" @bind-Value:after="OnProjectManagerChanged">
+                        <option value="">@L["Select a project manager"]</option>
+                        @foreach (var user in _users.Where(user => user.Role == UserRole.ProjectManager))
+                        {
+                            <option value="@user.UserId">@user.DisplayName</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _form.ProjectManagerId" />
+                </div>
+
+                <div class="col-md-6 col-xl-4">
+                    <label for="project-team-lead" class="form-label">@L["Team Lead"]</label>
+                    <InputSelect id="project-team-lead" class="form-select" @bind-Value="_form.TeamLeadUserId" @bind-Value:after="OnTeamLeadChanged" disabled="@(!_form.ProjectManagerId.HasValue)">
+                        <option value="">@L["Select a team lead"]</option>
+                        @foreach (var user in AvailableTeamLeads)
+                        {
+                            <option value="@user.UserId">@user.DisplayName</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _form.TeamLeadUserId" />
+                </div>
+
+                <div class="col-12">
+                    <fieldset disabled="@(!_form.TeamLeadUserId.HasValue)">
+                        <legend class="form-label">@L["Developers"]</legend>
+                        @if (!_form.TeamLeadUserId.HasValue)
+                        {
+                            <p class="text-muted">@L["Select a team lead before choosing developers."]</p>
+                        }
+                        else if (!AvailableDevelopers.Any())
+                        {
+                            <p class="text-muted">@L["No developers available."]</p>
+                        }
+                        else
+                        {
+                            <div class="row g-2">
+                                @foreach (var user in AvailableDevelopers)
+                                {
+                                    <div class="col-sm-6 col-lg-4">
+                                        <div class="form-check">
+                                            <input id="@($"project-developer-{user.UserId}")" class="form-check-input" type="checkbox" checked="@_form.DeveloperUserIds.Contains(user.UserId)" @onchange="eventArgs => OnDeveloperChanged(user.UserId, eventArgs)" />
+                                            <label class="form-check-label" for="@($"project-developer-{user.UserId}")">@user.DisplayName</label>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </fieldset>
+                </div>
+
+                <div class="col-md-6 col-xl-4">
+                    <label for="project-start-date" class="form-label">@L["Start Date"]</label>
+                    <InputDate id="project-start-date" class="form-control" @bind-Value="_form.StartDate" />
+                    <ValidationMessage For="() => _form.StartDate" />
+                </div>
+                <div class="col-md-6 col-xl-4">
+                    <label for="project-target-date" class="form-label">@L["Target Completion"]</label>
+                    <InputDate id="project-target-date" class="form-control" @bind-Value="_form.TargetCompletionDate" />
+                    <ValidationMessage For="() => _form.TargetCompletionDate" />
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@_saving">
+                    @(_saving ? L["Saving..."] : L["Save project"])
+                </button>
+                <a class="btn btn-outline-secondary" href="/projects">@L["Cancel"]</a>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? ProjectId { get; set; }
+
+    private readonly ProjectFormModel _form = new();
+    private List<User> _users = [];
+    private int _adminUserId;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _isEdit;
+    private string? _error;
+
+    private IEnumerable<User> AvailableTeamLeads => _form.ProjectManagerId.HasValue
+        ? _users.Where(user => user.Role == UserRole.TeamLead && user.UserId != _form.ProjectManagerId.Value)
+        : Enumerable.Empty<User>();
+
+    private IEnumerable<User> AvailableDevelopers => _form.TeamLeadUserId.HasValue
+        ? _users.Where(user => user.Role == UserRole.Employee &&
+            user.UserId != _form.ProjectManagerId && user.UserId != _form.TeamLeadUserId.Value)
+        : Enumerable.Empty<User>();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+        _form.Localizer = L;
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userIdValue = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdValue, out _adminUserId) || _adminUserId <= 0 || !authState.User.IsInRole("Administrator"))
+        {
+            NavigationManager.NavigateTo("/projects");
+            return;
+        }
+
+        _users = await UserService.GetAllUsersAsync();
+        _isEdit = ProjectId.HasValue;
+        if (_isEdit)
+        {
+            var project = await ProjectService.GetProjectForEditingAsync(ProjectId!.Value, _adminUserId);
+            if (project is null)
+            {
+                NavigationManager.NavigateTo("/projects");
+                return;
+            }
+
+            _form.Name = project.Name;
+            _form.Description = project.Description;
+            _form.ProjectManagerId = project.ProjectManagerId;
+            _form.TeamLeadUserId = project.ProjectMembers.FirstOrDefault(member => member.Role == "TeamLead")?.UserId;
+            _form.DeveloperUserIds = project.ProjectMembers
+                .Where(member => member.Role == "Developer")
+                .Select(member => member.UserId)
+                .ToList();
+            _form.StartDate = project.StartDate.Date;
+            _form.TargetCompletionDate = project.TargetCompletionDate?.Date;
+            _form.ProjectStatus = project.Status;
+        }
+        else
+        {
+            _form.StartDate = DateTime.Today;
+            _form.TargetCompletionDate = DateTime.Today.AddDays(30);
+        }
+
+        _loading = false;
+    }
+
+    private Task OnProjectManagerChanged()
+    {
+        if (_form.TeamLeadUserId == _form.ProjectManagerId)
+        {
+            _form.TeamLeadUserId = null;
+        }
+
+        _form.DeveloperUserIds.RemoveAll(userId => userId == _form.ProjectManagerId || userId == _form.TeamLeadUserId);
+        return Task.CompletedTask;
+    }
+
+    private Task OnTeamLeadChanged()
+    {
+        _form.DeveloperUserIds.RemoveAll(userId => userId == _form.TeamLeadUserId || userId == _form.ProjectManagerId);
+        return Task.CompletedTask;
+    }
+
+    private void OnDeveloperChanged(int userId, ChangeEventArgs eventArgs)
+    {
+        if (eventArgs.Value is bool isSelected && isSelected)
+        {
+            if (!_form.DeveloperUserIds.Contains(userId) && userId != _form.ProjectManagerId && userId != _form.TeamLeadUserId)
+            {
+                _form.DeveloperUserIds.Add(userId);
+            }
+        }
+        else
+        {
+            _form.DeveloperUserIds.Remove(userId);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            var project = new Project
+            {
+                ProjectId = ProjectId ?? 0,
+                Name = _form.Name,
+                Description = _form.Description,
+                ProjectManagerId = _form.ProjectManagerId!.Value,
+                StartDate = _form.StartDate!.Value,
+                TargetCompletionDate = _form.TargetCompletionDate,
+                Status = _form.ProjectStatus
+            };
+            await ProjectService.SaveProjectAsync(project, _form.TeamLeadUserId!.Value, _form.DeveloperUserIds, _adminUserId);
+            NavigationManager.NavigateTo("/projects");
+        }
+        catch (ArgumentException)
+        {
+            _error = L["Check project details and ensure each person has only one project role."].Value;
+        }
+        catch (Exception)
+        {
+            _error = L["The project could not be saved. Please try again."].Value;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private sealed class ProjectFormModel : IValidatableObject
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        public int? ProjectManagerId { get; set; }
+
+        public int? TeamLeadUserId { get; set; }
+
+        public DateTime? StartDate { get; set; }
+
+        public DateTime? TargetCompletionDate { get; set; }
+
+        public List<int> DeveloperUserIds { get; set; } = [];
+        public ProjectStatus ProjectStatus { get; set; } = ProjectStatus.Planning;
+        public IStringLocalizer<SharedResource>? Localizer { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (string.IsNullOrWhiteSpace(Name))
+            {
+                yield return new ValidationResult(Message("Project name is required."), [nameof(Name)]);
+            }
+            else if (Name.Trim().Length > 255)
+            {
+                yield return new ValidationResult(Message("Project name cannot exceed 255 characters."), [nameof(Name)]);
+            }
+
+            if (!string.IsNullOrWhiteSpace(Description) && Description.Length > 2000)
+            {
+                yield return new ValidationResult(Message("Project description cannot exceed 2,000 characters."), [nameof(Description)]);
+            }
+
+            if (!ProjectManagerId.HasValue)
+            {
+                yield return new ValidationResult(Message("Select a project manager."), [nameof(ProjectManagerId)]);
+            }
+
+            if (!TeamLeadUserId.HasValue)
+            {
+                yield return new ValidationResult(Message("Select a team lead."), [nameof(TeamLeadUserId)]);
+            }
+
+            if (!StartDate.HasValue)
+            {
+                yield return new ValidationResult(Message("Start date is required."), [nameof(StartDate)]);
+            }
+
+            if (!TargetCompletionDate.HasValue)
+            {
+                yield return new ValidationResult(Message("Target completion date is required."), [nameof(TargetCompletionDate)]);
+            }
+            else if (StartDate.HasValue && TargetCompletionDate.Value.Date < StartDate.Value.Date)
+            {
+                yield return new ValidationResult(Message("Target completion date must be on or after the start date."), [nameof(TargetCompletionDate)]);
+            }
+        }
+
+        private string Message(string key) => Localizer?[key].Value ?? key;
+    }
+}
